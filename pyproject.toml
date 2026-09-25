@@ -3,7 +3,7 @@ name = "autotrader"
 version = "0.1.0"
 description = "Autonomous, self-learning, multi-strategy trading system (infrastructure only)."
 requires-python = ">=3.12,<3.13"
-dependencies = ["autotrader-core", "autotrader-strategies-api", "autotrader-data", "autotrader-engine", "autotrader-validation", "autotrader-lifecycle", "autotrader-allocator", "autotrader-risk", "autotrader-execution", "autotrader-mt5-bridge", "autotrader-research", "autotrader-learning", "autotrader-monitor", "autotrader-api", "autotrader-cli"]
+dependencies = ["autotrader-core", "autotrader-strategies-api", "autotrader-data", "autotrader-engine", "autotrader-validation", "autotrader-lifecycle", "autotrader-allocator", "autotrader-risk", "autotrader-execution", "autotrader-mt5-bridge", "autotrader-research", "autotrader-learning", "autotrader-monitor", "autotrader-api", "autotrader-ai", "autotrader-cli"]
 
 [dependency-groups]
 dev = [
@@ -38,12 +38,13 @@ autotrader-research = { workspace = true }
 autotrader-learning = { workspace = true }
 autotrader-monitor = { workspace = true }
 autotrader-api = { workspace = true }
+autotrader-ai = { workspace = true }
 autotrader-cli = { workspace = true }
 
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-src = ["packages/core/src", "packages/strategies_api/src", "packages/data/src", "packages/engine/src", "packages/validation/src", "packages/lifecycle/src", "packages/allocator/src", "packages/risk/src", "packages/execution/src", "packages/mt5_bridge/src", "packages/research/src", "packages/learning/src", "packages/monitor/src", "packages/api/src", "packages/cli/src", "strategies", "tests"]
+src = ["packages/core/src", "packages/strategies_api/src", "packages/data/src", "packages/engine/src", "packages/validation/src", "packages/lifecycle/src", "packages/allocator/src", "packages/risk/src", "packages/execution/src", "packages/mt5_bridge/src", "packages/research/src", "packages/learning/src", "packages/monitor/src", "packages/api/src", "packages/ai/src", "packages/cli/src", "strategies", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "DTZ", "S", "PT", "PL"]
@@ -59,7 +60,7 @@ python_version = "3.12"
 strict = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = "packages/core/src:packages/strategies_api/src:packages/data/src:packages/engine/src:packages/validation/src:packages/lifecycle/src:packages/allocator/src:packages/risk/src:packages/execution/src:packages/mt5_bridge/src:packages/research/src:packages/learning/src:packages/monitor/src:packages/api/src:packages/cli/src"
+mypy_path = "packages/core/src:packages/strategies_api/src:packages/data/src:packages/engine/src:packages/validation/src:packages/lifecycle/src:packages/allocator/src:packages/risk/src:packages/execution/src:packages/mt5_bridge/src:packages/research/src:packages/learning/src:packages/monitor/src:packages/api/src:packages/ai/src:packages/cli/src"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]

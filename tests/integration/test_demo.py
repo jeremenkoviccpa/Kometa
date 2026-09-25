@@ -65,6 +65,11 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
             cat["scalp_session_breakout"]["trading"] and cat["scalp_session_breakout"]["style"] == "Scalping"
         )
         assert not cat["demo_ma_cross"]["trading"] and cat["demo_ma_cross"]["plumbing"]
+        # the owner's Claude tracks: registered with a switch, off by default (each call costs money)
+        assert not cat["claude_smc_judge"]["trading"] and not cat["claude_smc_free"]["trading"]
+        assert cat["claude_smc_free"]["style"] == "Claude AI"
+        ai = c.get("/api/ai").json()
+        assert ai["tracks"] == {"claude_smc_free": False, "claude_smc_judge": False}
         auth = {"Authorization": "Bearer " + "t" * 40}
         body = {"strategy_id": "scalp_session_breakout", "version": "1.0.0", "on": False}
         assert c.post("/api/control/paper-trade", json=body).status_code == 401  # owner only

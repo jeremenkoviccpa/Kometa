@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     ctrader_account_id: int | None = None  # ctidTraderAccountId (`at ctrader accounts` lists them)
     ctrader_environment: Literal["demo", "live"] = "demo"
 
+    # the owner's Claude tracks (packages/ai): paper only, off until switched on in the hub
+    ai_model: str = "claude-sonnet-5"
+    ai_max_calls_per_day: int = 200
+    ai_free_every_s: float = 900.0
+
     owner_public_key_path: Path = Path("config/owner_ed25519.pub")
     risk_decision_key_path: Path | None = None  # risk-gate container only
     risk_decision_public_key_path: Path | None = None

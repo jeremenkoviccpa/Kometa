@@ -7,7 +7,9 @@
 - No lookahead: strategies see closed bars only. Every strategy and feature passes the future poisoning test.
 - Research and learning code must never import risk, execution or allocator, and never edit config/risk.yaml,
   config/validation.yaml or config/promotion.yaml.
-- No LLM calls in the live order path.
+- No LLM calls in the live order path. One owner exception (2026-09-26): the Claude tracks in packages/ai, paper
+  only (refused under AT_ENV=live), demo_only (never promotable), answers checked in code, every trade through
+  the risk gate. No other LLM may reach SIGNALS.
 - No secrets in code or logs. Use settings.
 - Every change ships with tests. Run `make check` before calling anything done.
 - If the spec is unclear, pick the safer option, add a SPEC-QUESTION comment and an entry in docs/open_questions.md.

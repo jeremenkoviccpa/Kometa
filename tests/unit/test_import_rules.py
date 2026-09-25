@@ -33,6 +33,8 @@ ALLOWED: dict[str, set[str]] = {
     "learning": {"core", "lifecycle", "strategies_api", "data", "engine", "validation"},
     "monitor": {"core"},
     "api": {"core", "lifecycle", "monitor"},
+    # the owner's Claude tracks: they read bars and publish signals; sizing and orders stay elsewhere
+    "ai": {"core", "engine", "strategies_api"},
     "cli": {
         "core",
         "data",
@@ -45,11 +47,13 @@ ALLOWED: dict[str, set[str]] = {
         "execution",
         "allocator",  # `at demo run` composes every service in one process (decisions.md, Phase 8)
         "api",
+        "ai",
     },
 }
 NEVER = {
     "research": {"risk", "execution", "allocator"},
     "learning": {"risk", "execution", "allocator"},
+    "ai": {"risk", "execution", "allocator"},
 }
 # The CLI may import risk only for owner-side signing (`at risk sign`); nothing else may.
 RISK_IMPORTERS = {"cli"}
@@ -117,3 +121,22 @@ def test_strategy_code_imports_are_restricted() -> None:
             if not m.startswith(STRATEGY_ALLOWED_PREFIXES):
                 violations.append(f"{f.relative_to(ROOT)} imports {m}")
     assert violations == []
+
+
+# The owner's one exception to "no LLM in the live order path" is packages/ai (paper only, decisions.md
+# 2026-09-26). Research and learning may use Claude offline; no other package may import an LLM client.
+LLM_CLIENTS = ("anthropic", "openai")
+LLM_ALLOWED = {"ai", "research", "learning"}
+
+
+@pytest.mark.parametrize("pkg", sorted(set(ALLOWED) - LLM_ALLOWED))
+def test_no_llm_client_outside_the_owner_exception(pkg: str) -> None:
+    for path in (PACKAGES / pkg).rglob("*.py"):
+        bad = {m for m in imported_modules(path) if m.split(".")[0] in LLM_CLIENTS}
+        assert not bad, f"{path}: imports {bad}; only packages/ai may reach the order path with an LLM"
+
+
+def test_the_llm_check_sees_the_ai_package() -> None:  # control: the check would find a real import
+    assert any(
+        m.split(".")[0] == "anthropic" for p in (PACKAGES / "ai").rglob("*.py") for m in imported_modules(p)
+    )

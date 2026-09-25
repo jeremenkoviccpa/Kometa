@@ -246,3 +246,20 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
 - HTF structure is rebuilt on each H1 close and refined on each M15 close (every M15 was 3x slower, same rules).
 - The library poisoning test runs smc_sniper at the loose end of its tunable ranges: with defaults it makes no
   signal in 260 synthetic days, which would make the check vacuous.
+
+## 2026-09-26 Claude trading tracks (owner exception to "no LLM in the live order path")
+
+- The owner wants Claude Sonnet to trade the SMC method with judgment, switched on and off from the hub, in
+  two tracks: `claude_smc_judge` (takes or skips each setup the coded smc_sniper rules find; may tighten the
+  stop, never inside the sweep, and choose the target) and `claude_smc_free` (reads D1..M1 every 15 minutes
+  of wall time and may trade on its own).
+- Limits that keep the rest of the system's promises: the new `autotrader.ai` package may import core, engine
+  and strategies_api only (never risk, execution or allocator); Claude's answer passes the method's hard
+  rules in code at the live price (stop side and width, RR >= 3, full checklist, judge cannot flip the side);
+  signals go through allocator and risk gate like any strategy's (size is never Claude's); the tracks are
+  demo_only (untestable offline, so never promotable); the service refuses to call Claude under
+  AT_ENV=live; tracks start switched off; at most one call in flight per track, a daily call budget
+  (AT_AI_MAX_CALLS_PER_DAY, default 200); late answers (> 15 market minutes) are dropped; every decision,
+  including skips, refusals and errors, is logged (var/ai_decisions.jsonl) and shown in the hub.
+- smc_sniper 1.0.1 adds the sweep level to its signal tags so the judge's stop rule can be enforced.
+- Checked automatically: no package other than ai, research and learning imports an LLM client.

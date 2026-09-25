@@ -34,6 +34,8 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
+from autotrader.ai.claude import ClaudeDecider
+from autotrader.ai.trader import AiConfig, AiTraderService
 from autotrader.allocator.allocator import Allocator
 from autotrader.allocator.config import load_allocator_config
 from autotrader.allocator.service import AllocatorService
@@ -113,7 +115,9 @@ STYLE = {
     "swing_trend_pullback": "Swing",
     "candle_price_action": "Price action",
     "session_breakout": "Scalping",
+    "smc_top_down": "SMC / ICT sniper",
     "demo_ma_cross": "Plumbing test",
+    "claude_smc": "Claude AI",
 }
 
 
@@ -157,6 +161,7 @@ class DemoStack:
     calendar: ForexFactoryCalendar | None = None
     news_applied: bool = False  # the calendar feeds the risk gate's blackout (paper/live only)
     strategies: list[LoadedStrategy] = field(default_factory=list)
+    ai: AiTraderService | None = None  # the owner's Claude tracks
 
     def catalog(self) -> list[dict[str, Any]]:
         """Every strategy the demo can run, with its stage in the demo's registry."""
@@ -232,6 +237,7 @@ class DemoStack:
             research_dir=Settings().reports_dir,
             catalog=self.catalog,
             paper_trade=self.paper_trade,
+            ai=self.ai.view if self.ai is not None else None,
             protect_reads=protect_reads,
         )
 
@@ -363,7 +369,13 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         for d in sorted((root / "strategies" / "library").iterdir())
         if (d / "strategy.yaml").exists()
     ]
-    strategies = [demo, *library]
+    # the owner's Claude tracks: registered like strategies (a stage and a switch), off until switched on
+    ai_tracks = [
+        on_market(load_strategy(d), cfg.symbol)
+        for d in sorted((root / "strategies" / "ai").iterdir())
+        if (d / "strategy.yaml").exists()
+    ]
+    strategies = [demo, *library, *ai_tracks]
     instruments, _ = load_instruments(root / "config" / "instruments.yaml")
     instruments = {**instruments, "SYNTH": synthetic_instrument()}
     if cfg.symbol not in instruments:
@@ -544,6 +556,25 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
     acfg = load_allocator_config(root / "config" / "allocator.yaml", root / "config" / "promotion.yaml")
     allocator = AllocatorService(Allocator(acfg, cfg.var / "allocation.json"), bus, clock, instruments)
     engine = EngineLiveService(bus, clock, money=[(ls.cls, {}) for ls in strategies], history=history)
+    rules = next((ls for ls in library if ls.manifest.id == "smc_sniper"), None)
+    ai = None
+    if rules is not None and ai_tracks:
+        key = settings.anthropic_api_key
+        ai = AiTraderService(
+            bus,
+            clock,
+            decider=ClaudeDecider(key.get_secret_value(), settings.ai_model) if key is not None else None,
+            versions={ls.manifest.id: ls.manifest.version for ls in ai_tracks},
+            rules=rules.cls,
+            config=AiConfig(
+                model=settings.ai_model,
+                max_calls_per_day=settings.ai_max_calls_per_day,
+                free_every_s=settings.ai_free_every_s,
+            ),
+            history=history,
+            log_path=cfg.var / "ai_decisions.jsonl",
+            env=settings.env,
+        )
 
     stack = DemoStack(
         cfg=cfg,
@@ -571,6 +602,9 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         quote_ccy={s: instruments[s].quote for s in symbols},
     )
     stack.services = [lifecycle, risk, allocator, execution, engine, monitor, AuditService(audit)]
+    if ai is not None:
+        stack.ai = ai
+        stack.services.append(ai)
     stack.frame = frame
     stack.strategies = strategies
     stack.calendar, stack.news_applied = calendar, news is not None
@@ -627,6 +661,8 @@ class Scheduler:
         # decide on account data older than 10 s (fail closed)
         await s.execution.cycle()
         await s.engine.on_time(now)
+        if s.ai is not None:
+            await s.ai.on_time(now)
         local = now.astimezone(NY)
         day_key = local.date().isoformat()
         if local.hour >= 17 and self.rollover_day != day_key and local.weekday() < 5:

@@ -1,0 +1,19 @@
+# The owner's Claude track (owner decision 2026-09-26). Demo/paper only: it cannot be backtested, so it can
+# never pass validation and never trades money. Decisions come from the ai-trader service
+# (packages/ai), not from this file.
+id: claude_smc_free
+version: 1.0.0
+origin: owner
+family: claude_smc
+symbols: [XAUUSD]
+timeframes: [M15]
+demo_only: true
+params: {}
+expected:
+  trades_per_month: 4
+  win_rate: 0.3
+  avg_r: 0.0
+description: >-
+  Claude Sonnet reads gold from D1 down to M1 every 15 minutes and trades the owner's SMC method with its own
+  judgment (the coded rules' view is shown to it as a reference). Code still refuses a stop on the wrong side
+  or too wide and anything under 3R; the risk gate sizes every trade.

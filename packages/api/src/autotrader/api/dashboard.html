@@ -335,6 +335,8 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
       <h2>Choose what to trade <span class="help" data-h="Switch each strategy on or off for paper trading in this demo. On: it trades at minimum size through the full risk gate. Off: it goes back to shadow, its pending orders are cancelled and its open positions closed. Needs the owner token. None of these are validated yet; see Research.">?</span><span class="right muted">paper trading · minimum size · every order through the risk gate</span></h2>
       <div class="cards" id="catalog"></div>
     </div>
+    <div class="panel s12"><h2>Claude trader <span class="help" data-h="Claude Sonnet trades your SMC method in two tracks, switched on and off above (claude_smc_judge, claude_smc_free). Judge: Claude takes or skips each setup the coded rules find. Free: every 15 minutes Claude reads D1 down to M1 and may trade on its own. Code still refuses a stop on the wrong side or too wide and anything under 3R, and the risk gate sizes every trade. Paper only: never with real money.">?</span><span class="right muted" id="aiState"></span></h2>
+      <div class="scroll" id="aiDecisions" style="max-height:520px"></div></div>
     <div class="panel s8"><h2>Strategy versions <span class="help" data-h="Every version climbs the same ladder: candidate (validated offline) → shadow (live signals, no money) → micro (tiny size) → live → scaled. Promotion and demotion are automatic, from fixed statistical gates. demo_only versions are plumbing tests the owner allowed to paper trade at minimum size.">?</span><span class="right muted">candidate → shadow → micro → live → scaled</span></h2><div class="scroll" id="versions"></div>
       <div class="note">Stages change only through the evaluator's fixed gates or an owner retire. demo_ma_cross is a plumbing test, not a trading method.</div></div>
     <div class="panel s4"><h2>Allocation <span class="help" data-h="How the total risk budget is split between live versions: by live Sharpe shrunk toward the backtest Sharpe, with correlated versions sharing one slot and a 30% cap per slot. Rebalanced weekly, never intraday.">?</span><span class="right muted" id="allocAt"></span></h2><div class="bars" id="alloc"></div></div>
@@ -913,8 +915,24 @@ async function renderCatalog() {
   });
 }
 
+async function renderAi() {
+  const a = await get("/api/ai");
+  const on = Object.entries(a.tracks || {}).filter(([, v]) => v).map(([k]) => k);
+  $("aiState").textContent = !a.enabled ? `off: ${a.disabled_reason}`
+    : `${a.model} · ${on.length ? "trading: " + on.join(", ") : "both tracks switched off"} · ${a.calls_last_24h}/${a.max_calls_per_day} calls today${(a.thinking || []).length ? " · thinking…" : ""}`;
+  const tag = {take: "open", skip: "", refused: "pending", error: "danger", "not asked": ""};
+  $("aiDecisions").innerHTML = table([
+    ["When", r => stamp(r.at)], ["Track", r => esc(r.track.replace("claude_smc_", ""))],
+    ["Decision", r => `<span class="tag ${tag[r.action] || ""}">${esc(r.action)}</span> ${esc(r.side || "")}`],
+    ["Stop / target", r => r.stop == null ? "" : `${num(r.stop)} / ${num(r.target)}${r.rr ? ` · ${num(r.rr)}R` : ""}`],
+    ["Confidence", r => r.confidence == null ? "" : pct(r.confidence, 0), "n"],
+    ["Claude's reasoning", r => `${esc(r.reasoning || "")}${r.detail ? `<div class="muted">${esc(r.detail)}</div>` : ""}`]],
+    a.decisions || [], "no Claude decisions yet: switch on claude_smc_judge or claude_smc_free above");
+}
+
 async function renderStrategies() {
   renderCatalog().catch(() => {});
+  renderAi().catch(() => {});
   const [vers, alloc, trades] = await Promise.all([get("/api/versions"), get("/api/allocation"), get("/api/trades?limit=500")]);
   $("versions").innerHTML = table([
     ["Version", r => `<b>${esc(r.strategy_id)}</b> <span class="muted">${esc(r.version)}</span>`],

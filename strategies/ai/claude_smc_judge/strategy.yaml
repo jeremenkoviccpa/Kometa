@@ -1,0 +1,19 @@
+# The owner's Claude track (owner decision 2026-09-26). Demo/paper only: it cannot be backtested, so it can
+# never pass validation and never trades money. Decisions come from the ai-trader service
+# (packages/ai), not from this file.
+id: claude_smc_judge
+version: 1.0.0
+origin: owner
+family: claude_smc
+symbols: [XAUUSD]
+timeframes: [M15]
+demo_only: true
+params: {}
+expected:
+  trades_per_month: 1
+  win_rate: 0.3
+  avg_r: 0.0
+description: >-
+  Claude Sonnet judges every setup the coded SMC sniper rules find (D1 to M1 charts, bias, POI, sweep,
+  liquidity) and takes or skips it; it may tighten the stop (never inside the sweep) or choose the target,
+  as long as RR stays at least 3. Every trade goes through the risk gate.

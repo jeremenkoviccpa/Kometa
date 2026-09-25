@@ -98,6 +98,7 @@ def create_app(
     research_dir: Path | None = None,
     catalog: Callable[[], list[dict[str, Any]]] | None = None,
     paper_trade: Callable[[str, str, bool], Awaitable[str]] | None = None,
+    ai: Callable[[], dict[str, Any]] | None = None,
     protect_reads: bool = False,
 ) -> FastAPI:
     """`protect_reads`: every /api and /research request needs the owner token (public hosting); the page
@@ -504,6 +505,13 @@ def create_app(
     def get_catalog() -> list[dict[str, Any]]:
         """Every strategy this process can run and whether it is trading now."""
         return catalog() if catalog is not None else []
+
+    @app.get("/api/ai")
+    def get_ai() -> dict[str, Any]:
+        """The owner's Claude tracks: switched on or not, the call budget, and every recent decision."""
+        return (
+            ai() if ai is not None else {"enabled": False, "disabled_reason": "not running", "decisions": []}
+        )
 
     @app.get("/api/allocation")
     def get_allocation() -> dict[str, Any]:

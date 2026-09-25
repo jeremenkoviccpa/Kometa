@@ -278,6 +278,6 @@ class SmcSniper(Strategy):
                     f"{'pin bar' if seq['confirm'] == 1.0 else 'engulfing'}, target liquidity "
                     f"{sign * target:.2f} ({rr:.1f}R)"
                 ),
-                tags={"setup": "smc_sniper", "rr": f"{rr:.2f}"},
+                tags={"setup": "smc_sniper", "rr": f"{rr:.2f}", "sweep": f"{sign * seq['sweep']:.5f}"},
             )
         ]

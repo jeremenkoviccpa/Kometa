@@ -2,7 +2,7 @@
 # and micro say so. The owner's SMC/ICT top-down "1M sniper entry" method, turned into fixed rules
 # (strategy.py docstring maps every step of the method to its rule).
 id: smc_sniper
-version: 1.0.0
+version: 1.0.1
 origin: owner
 family: smc_top_down
 symbols: [XAUUSD]
