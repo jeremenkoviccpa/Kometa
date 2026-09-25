@@ -15,6 +15,18 @@ from autotrader.strategies_api.loader import load_strategy
 from autotrader.validation.poisoning import future_poisoning_test
 
 ROOT = Path(__file__).resolve().parents[2]
+# The owner's SMC method is strict: on random-walk prices, price almost never returns to an untouched
+# discount order block. Run its poisoning check at the loose end of its tunable ranges, so signals exist.
+POISON_PARAMS = {
+    "smc_sniper": {
+        "disp_atr": 1.0,
+        "window_m": 240,
+        "max_sl_atr": 2.0,
+        "stop_buffer_atr": 0.3,
+        "liq_lookback": 10,
+        "min_rr": 3.0,
+    }
+}
 LIBRARY = sorted(p for p in (ROOT / "strategies" / "library").iterdir() if (p / "strategy.yaml").exists())
 
 
@@ -39,6 +51,7 @@ def test_the_library_has_the_owner_requested_styles() -> None:
         "swing_trend_pullback",
         "candle_sr_reversal",
         "scalp_session_breakout",
+        "smc_sniper",
     }
 
 
@@ -51,6 +64,12 @@ def test_library_strategy_is_a_candidate_without_lookahead(path: Path, gold: pl.
     instruments, _ = load_instruments(ROOT / "config" / "instruments.yaml")
     t0 = gold["open_time"][0]
     cut = t0 + timedelta(days=260)
-    rep = future_poisoning_test(ls.cls, {"XAUUSD": gold}, {"XAUUSD": instruments["XAUUSD"]}, cut)
+    rep = future_poisoning_test(
+        ls.cls,
+        {"XAUUSD": gold},
+        {"XAUUSD": instruments["XAUUSD"]},
+        cut,
+        params=POISON_PARAMS.get(m.id),
+    )
     assert rep.passed, rep.first_difference
     assert rep.signals_checked > 0, "no signals before the cut: the poisoning check would prove nothing"

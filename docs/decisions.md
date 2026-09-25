@@ -230,3 +230,19 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   PermissionError and are never turned into "broker unavailable" (PermissionError is an OSError; a test caught
   the adapter doing exactly that). History from cTrader is bid-only, so tuning keeps using Dukascopy.
 
+
+## 2026-09-26 The owner's SMC sniper method as a library strategy
+
+- The owner supplied a discretionary SMC/ICT method written as a prompt for an AI analyst. Per the owner, what
+  counts is the strategy, not the prompt: it is `strategies/library/smc_sniper`, deterministic rules, a candidate
+  like the other library strategies. Size is not the strategy's: the allocator and signed risk limits decide it.
+- Readings chosen where the method is discretionary: bias = D1 and H4 structure agree; dealing range = the last
+  confirmed H4 swing high and low; POI = the last opposite candle before a displacement (body >= k x ATR) that
+  leaves a fair value gap, unmitigated (no close through it), newest H1 block refined by the newest M15 block
+  inside it; M5 reaction = a bar into the POI closing in the bias direction; target = the nearest untaken H1
+  swing, previous day's extreme or range extreme, chosen before the RR check, so the 3R minimum can never
+  push the target further.
+- Shorts run through the same code on negated prices (high and low swapped), so both sides are the same rules.
+- HTF structure is rebuilt on each H1 close and refined on each M15 close (every M15 was 3x slower, same rules).
+- The library poisoning test runs smc_sniper at the loose end of its tunable ranges: with defaults it makes no
+  signal in 260 synthetic days, which would make the check vacuous.

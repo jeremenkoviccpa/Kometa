@@ -35,3 +35,24 @@ kickers, hanging man) instead of pin bar, engulfing and star only. Same data and
 Reading: more setups (25 vs 15), no better. A 12% win rate with a 1.5R minimum target points at stops too close
 to the level for gold's noise; that is a question for the walk-forward search (stop_buffer_atr, zone_atr), not
 for hand-tuning here.
+
+## 2026-09-26 smc_sniper 1.0.0: first look, real gold 2018
+
+The owner's SMC/ICT top-down "1M sniper entry" method as fixed rules (strategy.py lists each rule). Same data
+source as above, calendar year 2018, default parameters, full cost model. A single look at the rules, not a
+test of the method.
+
+| Step reached | Count |
+|---|---|
+| H4 dealing range + agreed D1/H4 bias + discount POI present (M5 bars) | 8,172 of 54,375 |
+| M5 reaction at the POI (opens a 90 min M1 hunt window) | 185 |
+| M1: sweep with rejection | 2,671 bar checks |
+| M1: close through the lower high (CHOCH) | 1,812 |
+| ... made by a displacement candle with a fair value gap | 232 |
+| ... then BOS, pullback into the gap, pin bar or engulfing | 1 |
+| Trades (stop within 1 H1 ATR, nearest liquidity >= 3R) | 1 (-1.07R) |
+
+Reading: the method, read literally, trades about once a year on gold M1: the full seven-step M1 sequence
+almost never completes within the window. Nothing was loosened by hand; `disp_atr`, `window_m`, `max_sl_atr`,
+`stop_buffer_atr` and `liq_lookback` are the walk-forward search's to try. At this rate it cannot reach the
+200 out-of-sample trades validation needs on gold alone.

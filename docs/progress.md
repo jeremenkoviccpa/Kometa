@@ -23,6 +23,6 @@ Machine-read by tests/unit/test_process_rules.py: a phase marked `done` must hav
 - ForexFactory calendar feeds the risk gate's news blackout on a real clock (open question 31 for staleness).
 - Dukascopy history fetcher (`at data fetch`); the feed throttles hard (about 5-10 files a minute), so the
   full gold 2017+ and FX 2019+ download runs for many hours; rerunning the command resumes.
-- Strategy library (owner decision): swing_trend_pullback, candle_sr_reversal, scalp_session_breakout as
+- Strategy library (owner decision): swing_trend_pullback, candle_sr_reversal, scalp_session_breakout, smc_sniper as
   candidates, plus reversal-candle indicators. First look on real gold 2017-2020: none profitable with
   defaults (docs/research_log.md). Next: `at validate` each on the full history.

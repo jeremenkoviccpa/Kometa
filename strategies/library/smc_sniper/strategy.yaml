@@ -1,0 +1,27 @@
+# CANDIDATE strategy (owner decision 2026-09-26). Not validated; trades money only after validation, shadow
+# and micro say so. The owner's SMC/ICT top-down "1M sniper entry" method, turned into fixed rules
+# (strategy.py docstring maps every step of the method to its rule).
+id: smc_sniper
+version: 1.0.0
+origin: owner
+family: smc_top_down
+symbols: [XAUUSD]
+timeframes: [M1, M5, M15, H1, H4, D1]
+params:
+  disp_atr: {value: 1.5, min: 1.0, max: 3.0, tunable: true}
+  window_m: {value: 90, min: 30, max: 240, tunable: true}
+  max_sl_atr: {value: 1.0, min: 0.3, max: 2.0, tunable: true}
+  stop_buffer_atr: {value: 0.3, min: 0.0, max: 1.0, tunable: true}
+  liq_lookback: {value: 20, min: 10, max: 60, tunable: true}
+  min_rr: {value: 3.0, min: 3.0, max: 5.0, tunable: false}
+expected:
+  trades_per_month: 3
+  win_rate: 0.25
+  avg_r: 0.20
+description: >-
+  SMC/ICT top-down: D1 and H4 structure agree on the bias, trade only from discount (longs) or premium
+  (shorts) of the H4 dealing range, at an unmitigated H1 order block (refined on M15) left by a displacement
+  with a fair value gap. M5 shows the reaction, then M1 must print the full sequence: liquidity sweep and
+  rejection, CHOCH by a displacement candle that leaves an FVG, BOS, pullback into the FVG, and a pin bar or
+  engulfing confirmation. Stop beyond the sweep; target the nearest real liquidity (PDH/PDL, H1 swing,
+  range extreme); no trade under 3R or when the stop is too wide.
