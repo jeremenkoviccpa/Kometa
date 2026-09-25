@@ -1,0 +1,9 @@
+# Allocator (spec section 13). The allocator proposes; the risk gate decides.
+shrinkage_k: 150
+correlation_cluster_threshold: 0.6
+min_overlap_days: 20            # fewer common days than this: treated as uncorrelated
+max_share_per_version: 0.30
+# Risk budget split across live and scaled versions, as a fraction of equity per trade before stage caps.
+# SPEC-QUESTION: the spec does not size the "total risk budget"; equal to open_risk_total_max in risk.yaml.
+total_risk_budget: 0.03
+rebalance_days: 7               # weekly; never intraday (stage caps can only lower a fraction in between)

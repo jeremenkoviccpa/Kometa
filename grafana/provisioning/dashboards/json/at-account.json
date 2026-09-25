@@ -1,0 +1,156 @@
+{
+  "uid": "at-account",
+  "title": "Account overview",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "autotrader"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Equity and balance",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, account_id || ' equity' AS metric, equity::float AS value FROM account_snapshots WHERE $__timeFilter(at) UNION ALL SELECT at, account_id || ' balance', balance::float FROM account_snapshots WHERE $__timeFilter(at) ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Drawdown from peak",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, account_id AS metric, ((peak_equity - equity) / NULLIF(peak_equity, 0))::float AS value FROM account_snapshots WHERE $__timeFilter(at) ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "barchart",
+      "title": "Net P&L per day (money stages)",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT time_bucket('1 day', (payload->'trade'->>'exit_time')::timestamptz) AS time, sum((payload->'trade'->>'pnl_net')::numeric)::float AS value FROM audit_log WHERE event_type = 'PositionClosed' AND payload->'trade'->>'account_id' <> 'shadow' AND $__timeFilter(at) GROUP BY 1 ORDER BY 1",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Halts and critical alerts",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, event_type, coalesce(payload->>'kind', payload->>'state') AS kind, coalesce(payload->>'message', payload->>'reason') AS message FROM audit_log WHERE (event_type = 'HaltEntered' OR (event_type = 'Alert' AND payload->>'severity' = 'critical')) AND $__timeFilter(at) ORDER BY at DESC LIMIT 200",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Config files in use",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT DISTINCT ON (payload->>'name') at AS time, payload->>'name' AS file, payload->>'service' AS service, left(payload->>'config_hash', 16) AS sha256 FROM audit_log WHERE event_type = 'ConfigChanged' ORDER BY payload->>'name', at DESC",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    }
+  ]
+}

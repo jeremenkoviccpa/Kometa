@@ -1,0 +1,19 @@
+# NOT FOR LIVE TRADING. Exists only to exercise the plumbing (spec section 6).
+id: demo_ma_cross
+version: 1.0.0
+origin: owner
+family: demo_ma_cross
+symbols: [SYNTH]
+timeframes: [H1]
+demo_only: true
+params:
+  fast: {value: 12, min: 5, max: 30, tunable: true}
+  slow: {value: 48, min: 20, max: 120, tunable: true}
+  atr_len: {value: 14, min: 5, max: 50, tunable: false}
+  stop_atr: {value: 2.0, min: 0.5, max: 5.0, tunable: true}
+  reward_risk: {value: 2.0, min: 0.5, max: 5.0, tunable: true}
+expected:
+  trades_per_month: 8
+  win_rate: 0.35
+  avg_r: 0.0
+description: EMA crossover on H1 closes with ATR stop and fixed reward to risk. Plumbing test only.

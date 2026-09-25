@@ -1,0 +1,17 @@
+[project]
+name = "autotrader-engine"
+version = "0.1.0"
+description = "Event loop, MarketView, strategy runner, fill simulator."
+requires-python = ">=3.12,<3.13"
+dependencies = ["autotrader-core", "autotrader-strategies-api"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autotrader"]
+
+[tool.uv.sources]
+autotrader-core = { workspace = true }
+autotrader-strategies-api = { workspace = true }

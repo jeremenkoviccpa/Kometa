@@ -1,0 +1,16 @@
+.env
+*.env
+!config/settings.example.env
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+/data/
+/reports/
+secrets/
+*.key
+!*.pub
+/var/

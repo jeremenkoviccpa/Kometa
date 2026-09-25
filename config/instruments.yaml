@@ -1,0 +1,32 @@
+# Instrument specifications. Broker-specific values (commission, swaps, pip size
+# for metals, lot limits) are PLACEHOLDERS until the broker is chosen
+# (spec section 23). SPEC-QUESTION: replace with broker contract specs.
+version: 1
+
+defaults:
+  fx:
+    asset_class: fx
+    tick_size: 0.00001
+    min_lot: 0.01
+    lot_step: 0.01
+    max_lot: 50
+    commission_per_lot: 7.0      # round turn, account currency
+    swap_mode: points
+    triple_swap_weekday: 2       # Wednesday
+    daily_close: "17:00 America/New_York"
+  metal:
+    asset_class: metal
+    min_lot: 0.01
+    lot_step: 0.01
+    max_lot: 20
+    commission_per_lot: 7.0
+    swap_mode: points
+    triple_swap_weekday: 2       # broker specific for metals; confirm
+    daily_close: "17:00 America/New_York"
+
+instruments:
+  EURUSD: {asset_class: fx, base: EUR, quote: USD, contract_size: 100000, pip_size: 0.0001, swap_long: -6.5, swap_short: 1.2}
+  GBPUSD: {asset_class: fx, base: GBP, quote: USD, contract_size: 100000, pip_size: 0.0001, swap_long: -4.0, swap_short: -1.5}
+  AUDUSD: {asset_class: fx, base: AUD, quote: USD, contract_size: 100000, pip_size: 0.0001, swap_long: -2.5, swap_short: -1.0}
+  USDJPY: {asset_class: fx, base: USD, quote: JPY, contract_size: 100000, pip_size: 0.01, tick_size: 0.001, swap_long: 12.0, swap_short: -25.0}
+  XAUUSD: {asset_class: metal, base: XAU, quote: USD, contract_size: 100, pip_size: 0.01, tick_size: 0.01, swap_long: -35.0, swap_short: 18.0}

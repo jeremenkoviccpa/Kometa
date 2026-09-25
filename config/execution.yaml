@@ -1,0 +1,10 @@
+# Execution tunables (spec section 12). These are NOT risk limits: sizes and halts live in the signed risk.yaml.
+reconcile_interval_seconds: 60
+heartbeat_interval_seconds: 30
+watchdog_timeout_seconds: 120
+watched_services: [engine, risk-gate]
+stop_confirm_attempts: 2        # set a missing stop this many times, then close the position
+max_quote_age_seconds: 10       # market entries need a quote at most this old
+send_grace_seconds: 120         # an order sent but not seen at the broker after this is a mismatch
+balance_tolerance: "0.01"       # account currency
+deal_lookback_seconds: 300      # overlap when polling deals, so a late-stamped deal is never missed

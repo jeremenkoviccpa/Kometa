@@ -1,0 +1,1130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kometa Trading Hub</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='22' cy='10' r='6' fill='%23e3b341'/%3E%3Cpath d='M4 28 L18 14' stroke='%23e3b341' stroke-width='3' stroke-linecap='round' opacity='.5'/%3E%3C/svg%3E">
+<!-- TradingView Lightweight Charts (Apache 2.0). If it cannot load, the hub falls back to a simple SVG line. -->
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg: #0a0d13; --panel: #111620; --panel2: #161c28; --ink: #e7eaf0; --muted: #8791a3; --faint: #5b6475;
+  --line: #222a37; --up: #2fd08a; --down: #ff6b5a; --warn: #f5b041; --accent: #7c83ff; --accent2: #36c5f0; --gold: #e3b341;
+  --chip: #1b2230; --good-bg: rgba(47,208,138,.12); --bad-bg: rgba(255,107,90,.13); --warn-bg: rgba(245,176,65,.13);
+  --acc-bg: rgba(124,131,255,.14); --gold-bg: rgba(227,179,65,.13);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f4f6f9; --panel: #ffffff; --panel2: #f7f8fb; --ink: #141922; --muted: #5d6778; --faint: #98a1b2;
+    --line: #e3e7ee; --up: #0f8f5c; --down: #d4371c; --warn: #b86e00; --accent: #4f55e0; --accent2: #0a86b8; --gold: #a87400;
+    --chip: #eef1f5; --good-bg: #e7f7ef; --bad-bg: #fdecea; --warn-bg: #fdf3e2; --acc-bg: #eceefe; --gold-bg: #fbf1dc;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font: 13.5px/1.5 "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.mono, td.n, .kpi .v, .clock, .price, .num { font-variant-numeric: tabular-nums; }
+button, select { font: inherit; color: inherit; cursor: pointer; }
+
+header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.bar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; flex-wrap: wrap; max-width: 1640px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .3px; font-size: 15px; }
+.brand small { font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.pill { font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+.pill.bad { background: var(--bad-bg); color: var(--down); } .pill.gold { background: var(--gold-bg); color: var(--gold); }
+.state { font-size: 12px; font-weight: 700; letter-spacing: .6px; padding: 5px 12px; border-radius: 8px; white-space: nowrap; }
+.state.good { background: var(--good-bg); color: var(--up); }
+.state.bad { background: var(--bad-bg); color: var(--down); animation: pulse 1.6s infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+.spacer { flex: 1; }
+.live { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--up); flex: none; animation: beat 2s infinite; }
+.dot.off { background: var(--down); animation: none; }
+@keyframes beat { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--up) 60%, transparent); } 70% { box-shadow: 0 0 0 7px transparent; } }
+.iconbtn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 10px; font-size: 12.5px; }
+.iconbtn:hover { border-color: var(--accent); }
+nav { display: flex; gap: 2px; padding: 0 20px; max-width: 1640px; margin: 0 auto; overflow-x: auto; scrollbar-width: none; }
+nav button { background: none; border: 0; padding: 9px 13px 10px; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; }
+nav button.on { color: var(--ink); border-color: var(--gold); }
+nav .count { margin-left: 6px; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--bad-bg); color: var(--down); }
+
+main { max-width: 1640px; margin: 0 auto; padding: 16px 20px 56px; }
+.view { display: none; gap: 14px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.view.on { display: grid; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.panel h2 { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.panel h2 .right { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.s12 { grid-column: span 12; } .s8 { grid-column: span 8; } .s7 { grid-column: span 7; } .s6 { grid-column: span 6; } .s5 { grid-column: span 5; } .s4 { grid-column: span 4; }
+.lead { font-size: 13px; color: var(--muted); margin: -4px 0 12px; max-width: 900px; }
+
+.help { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--faint); color: var(--muted);
+  font-size: 10.5px; font-weight: 700; cursor: help; text-transform: none; letter-spacing: 0; flex: none; }
+.help:hover, .help:focus { border-color: var(--gold); color: var(--gold); outline: none; }
+#tipbox { position: fixed; z-index: 50; max-width: 340px; background: var(--panel2); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font-size: 12.5px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.35); display: none; pointer-events: none; }
+
+.health { grid-column: span 12; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 16px 18px; }
+.health .big { font-size: 17px; font-weight: 650; }
+.health.ok { border-color: color-mix(in srgb, var(--up) 40%, var(--line)); } .health.bad { border-color: color-mix(in srgb, var(--down) 50%, var(--line)); }
+.checks { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.check { font-size: 12px; padding: 4px 10px; border-radius: 8px; background: var(--chip); display: inline-flex; gap: 6px; align-items: center; }
+.check.ok::before { content: "✓"; color: var(--up); font-weight: 700; } .check.no::before { content: "!"; color: var(--down); font-weight: 800; }
+.gauge { margin: 10px 0 14px; }
+.gauge .top { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; gap: 8px; }
+.gauge .track { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; position: relative; }
+.gauge .track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; transition: width .4s; }
+.gauge .sub { font-size: 11.5px; color: var(--faint); margin-top: 4px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; min-width: 0; }
+.stat .l { font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.stat .v { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caveat { font-size: 12px; color: var(--warn); background: var(--warn-bg); border-radius: 8px; padding: 7px 10px; margin-top: 10px; }
+
+.kpis { grid-column: span 12; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.kpi h2 { margin-bottom: 4px; }
+.kpi .v { font-size: 22px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .s { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter { height: 5px; border-radius: 3px; background: var(--chip); margin-top: 8px; overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s; }
+
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.step { position: relative; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+.step:not(:last-child)::after { content: "›"; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 18px; z-index: 1; }
+.step .n { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.step .l { font-size: 11.5px; color: var(--muted); }
+.step.flash { animation: flash .9s; }
+@keyframes flash { 0% { border-color: var(--gold); background: var(--gold-bg); } }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: none; border: 0; padding: 4px 9px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.seg button.on { background: var(--gold-bg); color: var(--gold); }
+.quote { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; margin: 2px 0 8px; }
+.price { font-size: 26px; font-weight: 650; }
+.qs { color: var(--muted); font-size: 12.5px; }
+.chart { position: relative; height: 440px; }
+.chart.sm { height: 230px; }
+.chart svg { width: 100%; height: 100%; display: block; }
+.ohlc { position: absolute; left: 8px; top: 6px; z-index: 3; font-size: 12px; color: var(--muted); pointer-events: none; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.tv { height: 460px; border-radius: 8px; overflow: hidden; }
+.tvq { min-height: 90px; }
+
+.feed { height: 520px; overflow: auto; margin: 0 -6px; padding: 0 6px; }
+.ev { display: grid; grid-template-columns: 44px 70px 1fr; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--line); align-items: start; }
+.ev.linked { cursor: pointer; } .ev.linked:hover { background: var(--panel2); }
+.ev .t { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.ev .k { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 2px 6px; border-radius: 5px; background: var(--chip); color: var(--muted); text-align: center; }
+.ev .x { min-width: 0; overflow-wrap: anywhere; }
+.ev .who { color: var(--muted); font-size: 12px; }
+.ev.new { animation: slide .8s; }
+@keyframes slide { from { background: var(--gold-bg); } }
+.tone-good .k { background: var(--good-bg); color: var(--up); } .tone-bad .k { background: var(--bad-bg); color: var(--down); }
+.tone-warn .k { background: var(--warn-bg); color: var(--warn); } .tone-info .k { background: var(--acc-bg); color: var(--accent); }
+.tone-muted .x { color: var(--muted); }
+.filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.filters button { border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 8px; font-size: 11.5px; color: var(--muted); }
+.filters button.on { color: var(--ink); border-color: var(--gold); }
+
+.scroll { max-height: 360px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; padding: 7px 8px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 1; white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--panel2); }
+td.n, th.n { text-align: right; }
+td.wrap { white-space: normal; min-width: 220px; }
+.up { color: var(--up); } .down { color: var(--down); } .muted { color: var(--muted); } .warn { color: var(--warn); } .goldc { color: var(--gold); }
+.empty { color: var(--muted); padding: 14px 2px; }
+.tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+.tag.live, .tag.scaled, .tag.closed-win, .tag.open { background: var(--good-bg); color: var(--up); }
+.tag.micro, .tag.demo_only, .tag.sent, .tag.pending, .tag.approved, .tag.sized { background: var(--acc-bg); color: var(--accent); }
+.tag.retired, .tag.cancelled { text-decoration: line-through; }
+.tag.rejected, .tag.closed-loss { background: var(--bad-bg); color: var(--down); }
+.tag.buy { background: var(--good-bg); color: var(--up); } .tag.sell { background: var(--bad-bg); color: var(--down); }
+.sev { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.sev.critical { background: var(--down); } .sev.warning { background: var(--warn); } .sev.info { background: var(--accent); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 5px 10px; border-radius: 8px; background: var(--chip); display: inline-flex; align-items: center; gap: 6px; }
+.chip .dot { animation: none; width: 7px; height: 7px; } .chip.stale .dot { background: var(--down); }
+.act { border: 1px solid var(--line); background: var(--panel2); border-radius: 7px; padding: 3px 9px; font-size: 12px; }
+.act:hover { border-color: var(--accent); } .act.danger:hover { border-color: var(--down); color: var(--down); }
+.ladder { display: flex; gap: 4px; align-items: center; }
+.ladder span { width: 18px; height: 6px; border-radius: 3px; background: var(--chip); }
+.ladder span.hit { background: var(--accent); } .ladder span.now { background: var(--up); }
+.bars .row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 10px; align-items: center; margin: 7px 0; font-size: 12.5px; }
+.bars .track { height: 8px; background: var(--chip); border-radius: 4px; overflow: hidden; }
+.bars .track i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.card { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.card.on { border-color: color-mix(in srgb, var(--up) 55%, var(--line)); }
+.card .t { display: flex; align-items: center; gap: 8px; }
+.card .t b { font-size: 14px; }
+.card .d { color: var(--muted); font-size: 12.5px; flex: 1; }
+.card .m { font-size: 12px; color: var(--faint); }
+.toggle { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-weight: 700; font-size: 12.5px; background: var(--chip); }
+.toggle.on { background: var(--good-bg); color: var(--up); border-color: transparent; }
+.toggle:hover { border-color: var(--gold); }
+pre.summary { margin: 0; white-space: pre-wrap; font: 12.5px/1.6 ui-monospace, "SF Mono", Menlo, monospace; }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+.guide h3 { font-size: 15px; margin: 0 0 6px; }
+.guide p, .guide li { max-width: 860px; }
+.guide ol, .guide ul { padding-left: 20px; margin: 6px 0; }
+.guide li { margin: 4px 0; }
+.flowdiag { display: flex; gap: 6px; align-items: stretch; flex-wrap: wrap; margin: 10px 0; }
+.flowdiag div { flex: 1 1 140px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 12.5px; }
+.flowdiag b { display: block; margin-bottom: 3px; color: var(--gold); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12.5px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100vw); background: var(--panel); border-left: 1px solid var(--line); z-index: 40;
+  transform: translateX(100%); transition: transform .25s; display: flex; flex-direction: column; box-shadow: -20px 0 40px rgba(0,0,0,.3); }
+#drawer.on { transform: none; }
+#drawer .hd { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+#drawer .bd { padding: 14px 18px 30px; overflow: auto; }
+.tl { position: relative; margin-left: 8px; }
+.tl .it { position: relative; padding: 0 0 16px 22px; border-left: 2px solid var(--line); }
+.tl .it:last-child { border-left-color: transparent; }
+.tl .it::before { content: ""; position: absolute; left: -7px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); }
+.tl .it.trade::before { border-color: var(--gold); } .tl .it.decision::before { border-color: var(--up); } .tl .it.fill::before { border-color: var(--accent2); }
+.tl .when { font-size: 11.5px; color: var(--faint); } .tl .ti { font-weight: 600; margin: 1px 0 3px; }
+.tl .stp { display: inline-block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-right: 6px; }
+.tl .expl { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+#scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 39; display: none; }
+#scrim.on { display: block; }
+
+dialog { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 14px; padding: 20px; width: min(460px, 92vw); }
+dialog::backdrop { background: rgba(0,0,0,.5); }
+dialog input { width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); font: 13px ui-monospace, Menlo, monospace; margin: 10px 0 14px; }
+dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; z-index: 60; display: none; max-width: 90vw; }
+
+@media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .s8, .s7, .s6, .s5, .s4 { grid-column: span 12; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .bar, nav, main { padding-left: 16px; padding-right: 16px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .flow { grid-template-columns: repeat(3, minmax(0, 1fr)); } .step:nth-child(3)::after { display: none; }
+  .scroll { overflow-x: auto; } .chart, .tv { height: 300px; } .bars .row { grid-template-columns: 110px 1fr 50px; }
+  .checks { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="kg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#e3b341" stop-opacity="0"/><stop offset="1" stop-color="#e3b341"/></linearGradient></defs><path d="M3 29 L19 13" stroke="url(#kg)" stroke-width="4" stroke-linecap="round"/><circle cx="22" cy="10" r="6.5" fill="#e3b341"/><circle cx="24" cy="8" r="2" fill="#fff" opacity=".7"/></svg>
+      Kometa <small>Trading Hub</small>
+    </div>
+    <span id="mode" class="pill gold">connecting…</span>
+    <span id="state" class="state good">…</span>
+    <span id="crit" class="pill bad" hidden></span>
+    <span class="spacer"></span>
+    <span class="live"><span id="dot" class="dot"></span><span id="clock" class="clock">…</span></span>
+    <button class="iconbtn" id="ownerBtn" title="Owner controls">🔑 Owner</button>
+  </div>
+  <nav id="tabs">
+    <button data-v="overview" class="on">Overview</button>
+    <button data-v="live">Live</button>
+    <button data-v="trades">Trades</button>
+    <button data-v="strategies">Strategies</button>
+    <button data-v="research">Research</button>
+    <button data-v="risk">Risk</button>
+    <button data-v="execution">Execution</button>
+    <button data-v="alerts">Alerts<span id="alertCount" class="count" hidden></span></button>
+    <button data-v="audit">Audit</button>
+    <button data-v="guide">Guide</button>
+  </nav>
+</header>
+
+<main>
+  <!-- OVERVIEW -->
+  <section class="view on" id="v-overview">
+    <div class="panel health" id="health"><span class="dot" id="hdot"></span><div><div class="big" id="hbig">Loading…</div><div class="muted" id="hsub"></div></div><div class="checks" id="hchecks"></div></div>
+
+    <div class="panel s4">
+      <h2>How close are we to a halt? <span class="help" data-h="The risk gate stops trading by itself when a loss limit is reached. Each bar is the current loss, measured exactly the way the gate measures it, against its limit from the owner-signed risk config. A full bar means that halt fires.">?</span></h2>
+      <div id="gauges"><div class="empty">waiting for the account…</div></div>
+    </div>
+    <div class="panel s8">
+      <h2>Performance · money trades <span class="help" data-h="Closed trades that used (paper) money, not shadow trades. R is the result in units of the money risked: +2R made twice what it risked, -1R means the stop was hit as planned. R makes results comparable across sizes and markets.">?</span><span class="right muted" id="perfNote"></span></h2>
+      <div class="stats" id="stats"></div>
+      <div class="caveat" id="caveat" hidden></div>
+    </div>
+
+    <div class="panel s6">
+      <h2>Cumulative R <span class="help" data-h="Running sum of R over closed money trades, trade by trade. Rising means more R won than lost. The dashed line is the best level so far; the gap below it is the drawdown.">?</span></h2>
+      <div class="chart sm" id="cumR"></div>
+    </div>
+    <div class="panel s6">
+      <h2>Result distribution <span class="help" data-h="How many closed trades ended in each R bucket. Trend strategies usually show many small losses near -1R and fewer, larger wins. Losses beyond -1R mean slippage or a gap through the stop.">?</span></h2>
+      <div class="chart sm"><svg id="hist"></svg></div>
+    </div>
+
+    <div class="panel s12">
+      <h2>Economic news this week · ForexFactory <span class="help" data-h="High-impact releases (rate decisions, jobs reports, inflation) can move gold by tens of dollars in seconds and blow through stops. On a real clock (paper or live) the risk gate refuses new entries within the blackout window around high-impact events for the trade's currencies, and refuses all entries if the calendar is stale. Source: ForexFactory's weekly calendar export.">?</span>
+        <span class="right muted" id="newsMeta"></span></h2>
+      <div class="lead" id="newsLead"></div>
+      <div class="scroll" id="news" style="max-height:340px"></div>
+    </div>
+
+    <div class="panel s8">
+      <h2>Recent trade journeys <span class="help" data-h="Each row is one signal and everything that happened to it: sizing, the risk decision, the order, the fill and the close. Click a row to see every step with its numbers.">?</span><span class="right"><button class="act" data-goto="trades">all trades →</button></span></h2>
+      <div class="scroll" id="ovJourneys" style="max-height:300px"></div>
+    </div>
+    <div class="panel s4">
+      <h2>Real gold right now <span class="help" data-h="Live quote from TradingView (OANDA:XAUUSD), for reference. The demo does not trade this price: it trades simulated gold prices with the real XAUUSD contract. Trading real prices needs the MT5 bridge and a broker demo account.">?</span></h2>
+      <div class="tvq" id="tvQuote"></div>
+      <div class="note" id="simVsReal"></div>
+    </div>
+  </section>
+
+  <!-- LIVE -->
+  <section class="view" id="v-live">
+    <div class="kpis">
+      <div class="panel kpi"><h2>Equity <span class="help" data-h="Account value including open trades' floating profit or loss.">?</span></h2><div class="v" id="k-equity">–</div><div class="s" id="k-balance"></div></div>
+      <div class="panel kpi"><h2>Day P&amp;L <span class="help" data-h="Change in equity since the last 17:00 New York close, when the trading day rolls over.">?</span></h2><div class="v" id="k-day">–</div><div class="s">since the 17:00 NY close</div></div>
+      <div class="panel kpi"><h2>Drawdown <span class="help" data-h="How far equity is below its highest point. The bar fills toward 10%; see Overview for the distance to the full halt.">?</span></h2><div class="v" id="k-dd">–</div><div class="s">from peak equity</div><div class="meter"><i id="k-ddm" style="width:0"></i></div></div>
+      <div class="panel kpi"><h2>Open risk <span class="help" data-h="Money lost if every open position hit its stop now. The bar fills toward the total open-risk limit.">?</span></h2><div class="v" id="k-risk">–</div><div class="s" id="k-riskp">to stops</div><div class="meter"><i id="k-riskm" style="width:0"></i></div></div>
+      <div class="panel kpi"><h2>Positions <span class="help" data-h="Open positions and pending entry orders Kometa has at the broker.">?</span></h2><div class="v" id="k-pos">–</div><div class="s" id="k-pending"></div></div>
+      <div class="panel kpi"><h2>Risk gate <span class="help" data-h="Today's risk decisions. Resized means the gate cut the size down; it can never increase it.">?</span></h2><div class="v" id="k-gate">–</div><div class="s">today: approved · resized · rejected</div></div>
+    </div>
+
+    <div class="panel s12">
+      <h2>Signal pipeline <span class="help" data-h="Every trade idea passes these steps in order. A signal that stops early was rejected or never filled; click the event in the feed to see why.">?</span><span class="right muted">strategy → allocator → risk gate → execution → broker</span></h2>
+      <div class="flow" id="flow"></div>
+    </div>
+
+    <div class="panel s8">
+      <h2><span id="chartTitle">Market</span> <span class="help" data-h="Candles built from the prices Kometa receives: the same bars the strategies see. Arrows mark entries, circles exits (green win, red loss). Dashed lines: an open entry and its stop. Scroll to zoom, drag to pan, hover for prices.">?</span>
+        <span class="right" style="display:flex;gap:8px;align-items:center"><button class="act" id="patBtn" title="Mark classic candlestick patterns (cm45t3r/candlestick set)">Patterns: off</button><span class="seg" id="tfs"></span></span></h2>
+      <div class="quote"><span class="price" id="q-mid">loading…</span><span class="qs" id="q-ba"></span><span class="qs" id="q-sp"></span></div>
+      <div class="chart" id="candles"><div class="ohlc" id="ohlc"></div></div>
+      <div class="legend"><span><i style="background:var(--up)"></i>entry ▲ buy / ▼ sell</span><span><i style="background:var(--gold)"></i>exit ● with its R</span><span><i style="background:var(--accent)"></i>open entry</span><span><i style="background:var(--down)"></i>stop</span></div>
+    </div>
+    <div class="panel s4">
+      <h2>Live feed <span class="help" data-h="Everything that happens, newest first. Click an event that belongs to a trade to open its full journey.">?</span><span class="right filters" id="filters"></span></h2>
+      <div class="feed" id="feed"><div class="empty">waiting for events…</div></div>
+    </div>
+
+    <div class="panel s12">
+      <h2>Real gold market · TradingView <span class="help" data-h="The real XAUUSD market from TradingView (OANDA feed), for comparison. Kometa does not trade from this chart; its own chart above shows the prices it trades on.">?</span><span class="right muted">reference only · the demo trades simulated prices</span></h2>
+      <div class="tv" id="tvChart"></div>
+    </div>
+
+    <div class="panel s7"><h2>Open positions and orders <span class="help" data-h="Now = where the position stands in R: +1R means it is up by as much as it risks to its stop. Click a row for its journey.">?</span></h2><div class="scroll" id="positions"></div></div>
+    <div class="panel s5"><h2>Equity</h2><div class="chart sm" id="eqChart"></div></div>
+    <div class="panel s8"><h2>Closed trades</h2><div class="scroll" id="trades"></div></div>
+    <div class="panel s4"><h2>Services <span class="help" data-h="Each service reports a heartbeat. If the strategy engine goes quiet, execution cancels pending entries (fail closed).">?</span><span class="right muted">heartbeats</span></h2><div class="chips" id="services"></div><div class="note" id="learning"></div></div>
+  </section>
+
+  <!-- TRADES -->
+  <section class="view" id="v-trades">
+    <div class="panel s12">
+      <h2>Trade journeys <span class="help" data-h="Every signal the system sized, newest first, including ones the risk gate rejected or that never filled.">?</span></h2>
+      <p class="lead">Each signal is one journey: strategy signal → size proposal → risk decision → order → fill → close. One id links every step. It is derived from the signal, so the same idea can never be ordered twice, even after a crash. Click any row.</p>
+      <div class="scroll" id="journeys" style="max-height:640px"></div>
+    </div>
+  </section>
+
+  <!-- STRATEGIES -->
+  <section class="view" id="v-strategies">
+    <div class="panel s12">
+      <h2>Choose what to trade <span class="help" data-h="Switch each strategy on or off for paper trading in this demo. On: it trades at minimum size through the full risk gate. Off: it goes back to shadow, its pending orders are cancelled and its open positions closed. Needs the owner token. None of these are validated yet; see Research.">?</span><span class="right muted">paper trading · minimum size · every order through the risk gate</span></h2>
+      <div class="cards" id="catalog"></div>
+    </div>
+    <div class="panel s8"><h2>Strategy versions <span class="help" data-h="Every version climbs the same ladder: candidate (validated offline) → shadow (live signals, no money) → micro (tiny size) → live → scaled. Promotion and demotion are automatic, from fixed statistical gates. demo_only versions are plumbing tests the owner allowed to paper trade at minimum size.">?</span><span class="right muted">candidate → shadow → micro → live → scaled</span></h2><div class="scroll" id="versions"></div>
+      <div class="note">Stages change only through the evaluator's fixed gates or an owner retire. demo_ma_cross is a plumbing test, not a trading method.</div></div>
+    <div class="panel s4"><h2>Allocation <span class="help" data-h="How the total risk budget is split between live versions: by live Sharpe shrunk toward the backtest Sharpe, with correlated versions sharing one slot and a 30% cap per slot. Rebalanced weekly, never intraday.">?</span><span class="right muted" id="allocAt"></span></h2><div class="bars" id="alloc"></div></div>
+    <div class="panel s12"><h2>Per-version results</h2><div class="scroll" id="perVersion"></div></div>
+  </section>
+
+  <!-- RESEARCH -->
+  <section class="view" id="v-research">
+    <div class="panel s12">
+      <h2>How Kometa learns a strategy <span class="help" data-h="Learning here means fitting a strategy's few parameters to the past, then checking the fit on data the fitting never saw. Only the unseen results count.">?</span></h2>
+      <div class="flowdiag">
+        <div><b>1 · Walk-forward</b>Take 3 years, try up to 20 parameter sets (every try is recorded), keep the best. Then trade the next 6 months, which it has never seen. Slide forward and repeat.</div>
+        <div><b>2 · Judge the unseen months</b>At least 200 out-of-sample trades and a profit factor of 1.3 or more, after spread, slippage and commission.</div>
+        <div><b>3 · Luck filter</b>Deflated Sharpe: the more variants tried, the higher the bar. Monte Carlo: worst-case drawdown from reshuffled trades.</div>
+        <div><b>4 · Robustness</b>Small parameter changes must still work, and the idea must work on at least 3 of 5 markets.</div>
+        <div><b>5 · Locked holdout</b>A final year nobody has touched, opened once per version and only if all else passed.</div>
+      </div>
+      <p class="lead" style="margin-top:6px">Most ideas fail here, and that is the point: a failure costs nothing, a false pass costs money. Passing makes a strategy a candidate for shadow trading, not a proven money maker.</p>
+    </div>
+    <div class="panel s12"><h2>Validation reports <span class="right muted">newest first · run with <span class="mono">at validate strategies/library/&lt;id&gt; --data data/dukascopy</span></span></h2><div class="scroll" id="research"></div></div>
+    <div class="panel s12" id="rDetail" hidden></div>
+  </section>
+
+  <!-- RISK -->
+  <section class="view" id="v-risk">
+    <div class="panel s4"><h2>Risk state</h2><div id="riskState"></div></div>
+    <div class="panel s4"><h2>Signed limits <span class="help" data-h="The limits the risk gate enforces, from the owner-signed config. The gate refuses to start if the signature does not match. Nothing in Kometa, including this hub and the learning loops, can change them.">?</span></h2><div id="limits"></div></div>
+    <div class="panel s4"><h2>Why the gate said no <span class="help" data-h="The most common reasons behind recent rejections and resizes.">?</span></h2><div class="bars" id="reasons"></div></div>
+    <div class="panel s12"><h2>News blackout calendar · ForexFactory <span class="help" data-h="Every event in this week's ForexFactory export. Only high-impact events for the traded currencies block entries.">?</span><span class="right muted" id="newsMeta2"></span></h2><div class="scroll" id="news2" style="max-height:420px"></div></div>
+    <div class="panel s12"><h2>Risk decisions <span class="help" data-h="Each decision is signed with the gate's private key and carries a sequence number and a short expiry; execution refuses anything unsigned, replayed or stale.">?</span></h2><div class="scroll" id="decisions"></div></div>
+  </section>
+
+  <!-- EXECUTION -->
+  <section class="view" id="v-execution">
+    <div class="panel s12">
+      <h2>Execution quality <span class="help" data-h="Slippage is how much worse the fill was than the price when the order was sent (positive = worse). The backtest assumed 0.2 × the spread. If real fills run worse, backtests were too optimistic and the monitor warns.">?</span></h2>
+      <p class="lead">Backtests are only honest if their cost model is. Every fill is compared with what the backtest assumed. Fills that are consistently worse trigger a warning, and in Phase 9 the cost model recalibrates itself (pessimistic changes apply at once, optimistic ones need evidence).</p>
+      <div class="scroll" id="execSym"></div>
+    </div>
+    <div class="panel s12"><h2>Fills</h2><div class="scroll" id="fills" style="max-height:560px"></div></div>
+  </section>
+
+  <!-- ALERTS -->
+  <section class="view" id="v-alerts">
+    <div class="panel s8"><h2>Alerts <span class="help" data-h="Critical needs you now (halts, reconciliation mismatch, missing stop, lost heartbeat, bad config signature, external position, audit chain break) and repeats every 10 minutes until acknowledged. Warning is worth a look. Info is for the record.">?</span></h2><div class="scroll" id="alerts" style="max-height:640px"></div></div>
+    <div class="panel s4"><h2>Daily summary <span class="right muted">so far today</span></h2><pre class="summary" id="summary">–</pre></div>
+  </section>
+
+  <!-- AUDIT -->
+  <section class="view" id="v-audit">
+    <div class="panel s12"><h2>Audit log <span class="help" data-h="Every signal, decision, order, fill, stage change, halt, config load and owner command, in order. Each record's hash covers the previous one, so any edit breaks the chain; `at audit verify` checks it.">?</span><span class="right"><select id="auditType" class="act"><option value="">decisions and events</option><option value="*">everything, incl. hourly stage snapshots</option></select></span></h2>
+      <div class="scroll" id="audit" style="max-height:640px"></div></div>
+  </section>
+
+  <!-- GUIDE -->
+  <section class="view guide" id="v-guide">
+    <div class="panel s12">
+      <h3>What you are looking at</h3>
+      <p id="gMode">Kometa is running.</p>
+      <p class="muted">Kometa is the machine around trading strategies. It tests them, decides how much each may risk, sends the orders, watches every fill, and demotes or retires strategies that stop working. It has no opinions about markets; the strategies do, and each must prove itself before it touches money.</p>
+    </div>
+    <div class="panel s12">
+      <h3>The path of every trade</h3>
+      <div class="flowdiag">
+        <div><b>1 · Strategy</b>Sees only closed bars, never the future. Emits a signal: side, entry, a mandatory stop, a target.</div>
+        <div><b>2 · Allocator</b>Decides how much of the risk budget this version gets (by stage and track record) and proposes a size.</div>
+        <div><b>3 · Risk gate</b>Recomputes the size itself, runs 9 checks, approves, shrinks or rejects, and signs the answer.</div>
+        <div><b>4 · Execution</b>Acts only on a valid signed decision. Sends the order with its stop, confirms the stop at the broker, records slippage.</div>
+        <div><b>5 · Monitor</b>Audits every step, alerts you, and feeds results to the lifecycle, which promotes or demotes versions.</div>
+      </div>
+      <p class="muted">No strategy, allocator or learning loop can get around step 3, and the gate can only make a trade smaller, never bigger.</p>
+    </div>
+    <div class="panel s6">
+      <h3>The risk gate's 9 checks, in order</h3>
+      <ol>
+        <li>Is trading allowed (no halt)?</li>
+        <li>Does the signal have a stop on the correct side, at least <b id="gStopSp">1.5</b>× the spread away?</li>
+        <li>Independent sizing: lots = money at risk ÷ (stop distance × contract size). It never trusts the allocator's number and never rounds up.</li>
+        <li>Open risk limits: per trade <b id="gPerTrade">–</b>, per strategy <b id="gPerStrat">–</b>, total <b id="gTotal">–</b> of equity.</li>
+        <li>Same-currency exposure: at most <b id="gSameCcy">–</b> positions in one currency and direction.</li>
+        <li>Leverage (at most <b id="gLev">–</b>× equity in notional) and per-symbol lot caps (gold: <b id="gXauLots">–</b> lots).</li>
+        <li>Margin: free margin stays above <b id="gMargin">–</b>× the margin the trade needs.</li>
+        <li>News blackout (<b id="gNews">–</b> min around high-impact events) and no new entries after <b id="gCutoff">–</b>.</li>
+        <li>The version's stage allows trading, within its stage limit.</li>
+      </ol>
+    </div>
+    <div class="panel s6">
+      <h3>Halts: the automatic brakes</h3>
+      <ul>
+        <li><b>Daily halt</b> at a <b id="gDay">–</b> loss since the 17:00 New York rollover: closes all positions, resumes the next trading day.</li>
+        <li><b>Weekly halt</b> at a <b id="gWeek">–</b> loss since the week's open: closes everything, resumes next week.</li>
+        <li><b>Full halt</b> at a <b id="gPeak">–</b> drawdown from the highest end-of-day equity: closes everything and waits for an owner-signed resume token.</li>
+        <li><b>Reconciliation halt</b> whenever Kometa's records and the broker disagree: no new entries until they match again.</li>
+      </ul>
+      <p class="muted">Halts survive restarts. Losses are measured on every account update, open trades included.</p>
+    </div>
+    <div class="panel s6">
+      <h3>The promotion ladder</h3>
+      <ul>
+        <li><b>Candidate</b>: passed offline validation (walk-forward, a locked holdout, Monte Carlo, deflated Sharpe).</li>
+        <li><b>Shadow</b>: live prices, no money, for 4+ weeks and 30+ signals; results must stay inside the backtest's range.</li>
+        <li><b>Micro</b>: 0.1% risk per trade for 60+ trades; slippage must stay near the cost model.</li>
+        <li><b>Live</b>: 0.5% risk per trade; 150+ trades and a rolling Sharpe of at least 1 to scale.</li>
+        <li><b>Scaled</b>: up to 1%, sized by the allocator.</li>
+      </ul>
+      <p class="muted">Demotion is automatic: a drawdown beyond 1.5× the Monte Carlo 95th percentile, a rolling profit factor under 1, slippage over 2× the model, or results drifting outside the backtest's interval. Two demotions in six months retire the version.</p>
+    </div>
+    <div class="panel s6">
+      <h3>Words you will see</h3>
+      <dl class="kv">
+        <dt>R (R multiple)</dt><dd>Result ÷ money risked. −1R = stopped out as planned; +2R = won twice the risk.</dd>
+        <dt>Expectancy</dt><dd>Average R per trade. Above zero after costs is the whole game.</dd>
+        <dt>Profit factor</dt><dd>Gross wins ÷ gross losses. Above 1 means net positive.</dd>
+        <dt>Open risk</dt><dd>What would be lost if every open stop were hit right now.</dd>
+        <dt>Drawdown</dt><dd>The drop from the highest equity reached.</dd>
+        <dt>Slippage</dt><dd>A fill worse than the price when the order was sent.</dd>
+        <dt>Shadow trade</dt><dd>What a strategy would have done, tracked without money.</dd>
+        <dt>Spread</dt><dd>Ask minus bid: the cost of crossing the market.</dd>
+        <dt>Lot (gold)</dt><dd>1 lot = 100 oz, so a $1 move in gold is $100 per lot (0.01 lot: $1).</dd>
+      </dl>
+    </div>
+    <div class="panel s12">
+      <h3>About making money</h3>
+      <p>Profits in this demo mean nothing: the prices are simulated and the only strategy is a plumbing test. Kometa exists to <b>find out</b> whether a trading method works, cheaply and safely, before real money depends on it. Real strategies come from you or traders (intake tooling, Phase 10) or from the research loops (Phase 9), and every one must survive validation, shadow and micro before it can scale.</p>
+    </div>
+  </section>
+</main>
+
+<div id="scrim"></div>
+<aside id="drawer" aria-label="Trade journey">
+  <div class="hd"><div style="flex:1;min-width:0"><div style="font-weight:650" id="dTitle">Trade</div><div class="muted mono" style="font-size:12px" id="dSub"></div></div><button class="iconbtn" id="dClose">Close</button></div>
+  <div class="bd" id="dBody"></div>
+</aside>
+<div id="tipbox"></div>
+
+<dialog id="ownerDlg">
+  <h3 style="margin:0 0 4px">Owner controls</h3>
+  <div class="muted" style="font-size:12.5px">Paste the owner token (the demo prints it at start; see var/hub.log). It stays in this browser tab only, and every command is written to the audit log. Nothing here can change risk limits.</div>
+  <input id="ownerTok" type="password" placeholder="owner token" autocomplete="off">
+  <div class="row"><button class="act" id="ownerClear">Forget</button><button class="act" id="ownerSave">Use token</button></div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = (x, d = 2) => x == null || isNaN(x) ? "–" : Number(x).toLocaleString(undefined, {minimumFractionDigits: d, maximumFractionDigits: d});
+const signed = (x, d = 2) => x == null ? "–" : (x > 0 ? "+" : "") + num(x, d);
+const pct = (x, d = 2) => x == null || isNaN(x) ? "–" : (Number(x) * 100).toFixed(d) + "%";
+const cls = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+const hhmm = (iso) => iso ? iso.slice(11, 16) : "";
+const stamp = (iso) => iso ? iso.slice(5, 16).replace("T", " ") : "";
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const digits = (p) => p >= 1000 ? 2 : p >= 50 ? 3 : 5;
+const sum = (xs) => xs.reduce((x, y) => x + y, 0);
+const LW = window.LightweightCharts;
+const table = (cols, rows, empty = "none yet", rowAttr) => rows.length ? `<table><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}</tr></thead><tbody>${
+  rows.map(r => `<tr ${rowAttr ? rowAttr(r) : ""}>${cols.map(c => `<td class="${c[2] || ""}">${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>` : `<div class="empty">${empty}</div>`;
+
+let token = null; try { token = sessionStorage.getItem("kometa.owner"); } catch (e) {}
+let S = null, view = "overview", market = [], feedSeq = 0, feedFilter = "all", lastPipe = {}, positions = [], limitsCache = null, feedItems = [];
+const STEPS = [["signal", "Signals"], ["intent", "Sized"], ["decision", "Risk decisions"], ["order", "Orders"], ["fill", "Fills"], ["trade", "Closed trades"]];
+const LADDER = ["candidate", "shadow", "micro", "live", "scaled"];
+const TFS = ["M1", "M5", "M15", "H1", "H4", "D1"];
+let tf = "M15"; try { tf = localStorage.getItem("kometa.tf") || "M15"; } catch (e) {}
+
+async function get(path) { const r = await fetch(path, {cache: "no-store"}); if (!r.ok) throw new Error(path); return r.json(); }
+async function post(path, body) {
+  if (!token) { $("ownerDlg").showModal(); throw new Error("owner token needed"); }
+  const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json", "Authorization": "Bearer " + token}, body: JSON.stringify(body || {})});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || r.statusText);
+  return j;
+}
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+
+/* help tips: one floating box that stays inside the viewport */
+function showTip(el) {
+  const box = $("tipbox"); box.textContent = el.dataset.h; box.style.display = "block";
+  const r = el.getBoundingClientRect(), bw = box.offsetWidth, bh = box.offsetHeight;
+  const x = Math.min(Math.max(8, r.left + r.width / 2 - bw / 2), innerWidth - bw - 8);
+  let y = r.bottom + 8; if (y + bh > innerHeight - 8) y = r.top - bh - 8;
+  box.style.left = x + "px"; box.style.top = y + "px";
+}
+const hideTip = () => { $("tipbox").style.display = "none"; };
+document.addEventListener("mouseover", (e) => { const h = e.target.closest(".help"); if (h) showTip(h); });
+document.addEventListener("mouseout", (e) => { if (e.target.closest(".help")) hideTip(); });
+document.addEventListener("focusin", (e) => { const h = e.target.closest(".help"); if (h) showTip(h); });
+document.addEventListener("focusout", (e) => { if (e.target.closest(".help")) hideTip(); });
+document.querySelectorAll(".help").forEach(h => h.tabIndex = 0);
+const help = (text) => ` <span class="help" tabindex="0" data-h="${esc(text)}">?</span>`;
+
+/* tabs and owner */
+function goto(v) {
+  view = v;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x.dataset.v === v));
+  document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.id === "v-" + v));
+  if (v === "live") { ensureCandles(); ensureTV(); }
+  refreshView();
+}
+$("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) goto(b.dataset.v); });
+document.addEventListener("click", (e) => { const g = e.target.closest("[data-goto]"); if (g) goto(g.dataset.goto); });
+$("ownerBtn").onclick = () => { $("ownerTok").value = token || ""; $("ownerDlg").showModal(); };
+$("ownerSave").onclick = () => { token = $("ownerTok").value.trim() || null; try { token ? sessionStorage.setItem("kometa.owner", token) : sessionStorage.removeItem("kometa.owner"); } catch (e) {} $("ownerDlg").close(); ownerLabel(); refreshView(); };
+$("ownerClear").onclick = () => { token = null; try { sessionStorage.removeItem("kometa.owner"); } catch (e) {} $("ownerDlg").close(); ownerLabel(); refreshView(); };
+function ownerLabel() { $("ownerBtn").textContent = token ? "🔓 Owner" : "🔑 Owner"; }
+ownerLabel();
+
+/* journey drawer */
+const STEP_EXPL = {
+  signal: "The strategy saw a closed bar and proposed a trade, stop included.",
+  intent: "The allocator sized it from this version's share of the risk budget and its stage.",
+  decision: "The risk gate recomputed the size, ran its 9 checks and signed its answer.",
+  order: "Execution verified the signature and dealt with the broker.",
+  fill: "The broker filled the order. Slippage is compared with the backtest's cost model.",
+  trade: "The position closed. R = net P&L ÷ the money that was at risk to the initial stop.",
+};
+const statusCls = (j) => j.status === "closed" ? (j.r > 0 ? "closed-win" : "closed-loss") : j.status;
+async function openJourney(ref) {
+  if (!ref) return;
+  let j; try { j = await get("/api/journey/" + encodeURIComponent(ref)); } catch (e) { toast("that trade is older than the hub remembers"); return; }
+  $("dTitle").innerHTML = `${esc((j.side || "").toUpperCase())} ${esc(j.symbol)} · <span class="tag ${statusCls(j)}">${esc(j.status)}</span>${j.r != null ? ` <b class="${cls(j.r)}">${signed(j.r)}R</b>` : ""}`;
+  $("dSub").textContent = `${j.strategy} · ${j.ref}`;
+  $("dBody").innerHTML = `<div class="tl">${j.steps.map(s => `<div class="it ${esc(s.step)}"><div class="when">${stamp(s.at)} UTC</div>
+    <div class="ti"><span class="stp">${esc(s.step)}</span>${esc(s.title)}</div><div class="expl">${esc(STEP_EXPL[s.step] || "")}</div>
+    <dl class="kv">${Object.entries(s.details).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></div>`).join("")}</div>`;
+  $("drawer").classList.add("on"); $("scrim").classList.add("on");
+}
+const closeDrawer = () => { $("drawer").classList.remove("on"); $("scrim").classList.remove("on"); };
+$("dClose").onclick = closeDrawer; $("scrim").onclick = closeDrawer;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+document.addEventListener("click", (e) => { const r = e.target.closest("[data-ref]"); if (r && r.dataset.ref && !e.target.closest("button")) openJourney(r.dataset.ref); });
+
+/* status, kpis, pipeline, health */
+function openRiskLimit() { return limitsCache && limitsCache.limits ? Number(limitsCache.limits.open_risk_total_max) : 0.03; }
+function renderStatus(s) {
+  $("clock").textContent = s.now.slice(0, 19).replace("T", " ") + " UTC";
+  $("mode").textContent = s.info.mode || "LIVE";
+  const halted = s.halt !== "NORMAL";
+  $("state").className = "state " + (halted ? "bad" : "good");
+  $("state").textContent = halted ? `HALTED · ${s.halt.replace("_", " ")}` : "TRADING";
+  $("state").title = s.halt_reason || "";
+  $("crit").hidden = !s.critical_open; $("crit").textContent = `${s.critical_open} critical open`;
+  $("alertCount").hidden = !s.critical_open; $("alertCount").textContent = s.critical_open;
+  const a = s.account;
+  if (a) {
+    $("k-equity").textContent = `${num(a.equity)} ${a.currency}`;
+    $("k-balance").textContent = `balance ${num(a.balance)} · free margin ${num(a.free_margin)}`;
+    $("k-day").innerHTML = `<span class="${cls(a.day_pnl)}">${signed(a.day_pnl)}</span>`;
+    $("k-dd").innerHTML = `<span class="${a.drawdown > 0.05 ? "down" : a.drawdown > 0.02 ? "warn" : ""}">${pct(a.drawdown)}</span>`;
+    $("k-ddm").style.width = Math.min(100, a.drawdown / 0.10 * 100) + "%";
+    $("k-ddm").style.background = a.drawdown > 0.05 ? css("--down") : a.drawdown > 0.02 ? css("--warn") : css("--accent");
+    const lim = openRiskLimit();
+    if (s.open_risk != null) {
+      const p = a.equity ? s.open_risk / a.equity : 0;
+      $("k-risk").textContent = num(s.open_risk);
+      $("k-riskp").textContent = `${pct(p)} of equity (limit ${pct(lim, 1)})`;
+      $("k-riskm").style.width = Math.min(100, p / lim * 100) + "%";
+    } else { $("k-risk").textContent = "unknown"; $("k-riskp").textContent = "a position has no stop or rate"; }
+  }
+  const v = s.verdicts;
+  $("k-gate").innerHTML = `<span class="up">${v.approve || 0}</span> · <span class="warn">${v.resize || 0}</span> · <span class="down">${v.reject || 0}</span>`;
+  $("flow").innerHTML = STEPS.map(([k, label]) => {
+    const n = s.pipeline[k] || 0, changed = lastPipe[k] !== undefined && lastPipe[k] !== n;
+    return `<div class="step ${changed ? "flash" : ""}"><div class="n">${n.toLocaleString()}</div><div class="l">${label}</div></div>`;
+  }).join("");
+  lastPipe = {...s.pipeline};
+  $("services").innerHTML = Object.entries(s.heartbeats).map(([k, age]) =>
+    `<span class="chip ${age > 120 ? "stale" : ""}"><span class="dot"></span>${esc(k)} <span class="muted">${age < 60 ? Math.round(age) + "s" : Math.round(age / 60) + "m"}</span></span>`).join("") || `<span class="muted">no heartbeats yet</span>`;
+  $("learning").innerHTML = `Learning loops: <b>${s.learning_paused ? "paused" : "running"}</b> <button class="act" id="learnBtn">${s.learning_paused ? "Resume" : "Pause"} learning</button>`;
+  $("learnBtn").onclick = async () => { try { await post("/api/control/pause-learning", {paused: !s.learning_paused}); toast("learning " + (s.learning_paused ? "resumed" : "paused")); tick(); } catch (e) { toast(e.message); } };
+  renderHealth(s);
+  const sim = String(s.info.mode || "").startsWith("SIMULATED");
+  $("gMode").innerHTML = `Mode: <b>${esc(s.info.mode || "live")}</b>. Strategy: ${esc(s.info.strategy || "–")}. ` + (sim
+    ? "Prices come from Kometa's market simulator. Everything else is modelled on the real instrument (contract size, lot steps, commission, spreads, slippage, fill latency), so sizes, costs, P&L and R behave like the real thing."
+    : "Prices and fills come from the broker account.");
+}
+function renderHealth(s) {
+  const stale = Object.entries(s.heartbeats).filter(([, age]) => age > 120).map(([k]) => k);
+  const riskP = s.account && s.open_risk != null ? s.open_risk / s.account.equity : 0;
+  const checks = [
+    [s.halt === "NORMAL", s.halt === "NORMAL" ? "trading allowed" : "halted: " + s.halt_reason],
+    [!stale.length, stale.length ? "silent: " + stale.join(", ") : `${Object.keys(s.heartbeats).length} services alive`],
+    [!s.critical_open, s.critical_open ? `${s.critical_open} critical alert(s) open` : "no critical alerts"],
+    [s.open_risk != null && riskP <= openRiskLimit(), s.open_risk == null ? "open risk unknown" : `open risk ${pct(riskP)}`],
+  ];
+  const ok = checks.every(c => c[0]);
+  $("health").className = "panel health " + (ok ? "ok" : "bad");
+  $("hdot").className = "dot" + (ok ? "" : " off");
+  const open = positions.filter(p => !p.pending).length;
+  $("hbig").textContent = ok ? "All systems normal" : "Needs attention";
+  $("hsub").textContent = ok ? `Trading ${s.info.symbol || ""} · ${open} open position${open === 1 ? "" : "s"} · ${s.pipeline.signal || 0} signals and ${s.pipeline.trade || 0} closed trades since the hub started`
+    : checks.filter(c => !c[0]).map(c => c[1]).join(" · ");
+  $("hchecks").innerHTML = checks.map(([good, t]) => `<span class="check ${good ? "ok" : "no"}">${esc(t)}</span>`).join("");
+}
+
+/* overview */
+async function renderOverview() {
+  const [lim, trades, js] = await Promise.all([get("/api/limits"), get("/api/trades?limit=500"), get("/api/journeys?limit=12")]);
+  limitsCache = lim;
+  const a = S && S.account, gauges = [];
+  for (const h of lim.halts || []) {
+    const used = h.loss == null ? 0 : Math.max(0, h.loss), frac = Math.min(1, used / h.limit);
+    const col = frac > 0.75 ? css("--down") : frac > 0.4 ? css("--warn") : css("--up");
+    const sub = h.loss == null ? "no reference yet: set at the first 17:00 New York rollover" : h.loss < 0 ? `up ${pct(-h.loss)} on the reference: no loss to count` : `${pct(h.limit - used)} of room before the ${h.halt.replace("_", " ").toLowerCase()}`;
+    gauges.push(`<div class="gauge"><div class="top"><span>${esc(h.name)}</span><span class="num">${pct(used)} of ${pct(h.limit, 0)}</span></div>
+      <div class="track"><i style="width:${(frac * 100).toFixed(1)}%;background:${col}"></i></div><div class="sub">${sub}</div></div>`);
+  }
+  if (lim.limits && a && S.open_risk != null) {
+    const p = S.open_risk / a.equity, l = Number(lim.limits.open_risk_total_max);
+    gauges.push(`<div class="gauge"><div class="top"><span>Open risk, all positions</span><span class="num">${pct(p)} of ${pct(l, 0)}</span></div>
+      <div class="track"><i style="width:${Math.min(100, p / l * 100).toFixed(1)}%;background:${css("--accent")}"></i></div><div class="sub">a new trade that would go past this is shrunk or rejected</div></div>`);
+  }
+  $("gauges").innerHTML = gauges.join("") || `<div class="empty">no risk data yet</div>`;
+
+  const money = trades.filter(t => !t.shadow).reverse();
+  const rs = money.map(t => t.r), wins = rs.filter(r => r > 0), losses = rs.filter(r => r <= 0);
+  const gw = sum(wins), gl = -sum(losses);
+  let eq = 0, pk = 0, dd = 0; const cum = rs.map(r => { eq += r; pk = Math.max(pk, eq); dd = Math.max(dd, pk - eq); return eq; });
+  const hold = money.map(t => (Date.parse(t.exit_time) - Date.parse(t.entry_time)) / 3.6e6);
+  const stat = (l, v, h, c = "") => `<div class="stat"><div class="l">${l}${h ? help(h) : ""}</div><div class="v ${c}">${v}</div></div>`;
+  $("stats").innerHTML = [
+    stat("Trades", money.length, "Closed money trades since the hub started."),
+    stat("Win rate", money.length ? pct(wins.length / money.length, 0) : "–", "Share of trades that made money. Trend strategies often win under half the time and still profit, because their wins are bigger than their losses."),
+    stat("Expectancy", money.length ? signed(sum(rs) / money.length) + "R" : "–", "Average R per trade: what one more trade is worth on average. The number that matters most.", cls(sum(rs))),
+    stat("Profit factor", gl > 0 ? num(gw / gl) : wins.length ? "∞" : "–", "Gross wins ÷ gross losses, in R. Above 1 is net positive."),
+    stat("Total R", signed(sum(rs)), "The sum of every trade's R.", cls(sum(rs))),
+    stat("Net P&L", money.length ? signed(sum(money.map(t => t.pnl))) : "–", "Money made or lost after commissions and swaps.", cls(sum(money.map(t => t.pnl)))),
+    stat("Max drawdown", money.length ? num(dd) + "R" : "–", "The largest peak-to-trough fall of cumulative R."),
+    stat("Avg hold", hold.length ? num(sum(hold) / hold.length, 1) + " h" : "–", "Average time from entry to exit."),
+  ].join("");
+  $("perfNote").textContent = money.length ? `best ${signed(Math.max(...rs))}R · worst ${signed(Math.min(...rs))}R` : "";
+  const sim = S && String(S.info.mode || "").startsWith("SIMULATED");
+  $("caveat").hidden = !sim;
+  $("caveat").textContent = "Simulated prices and a plumbing-test strategy: these numbers test the machinery. They are not evidence that anything makes money.";
+  lineChart("cumR", cum);
+  histogram(rs);
+  $("ovJourneys").innerHTML = journeyTable(js, "no trade journeys yet");
+  const m = market[0];
+  $("simVsReal").textContent = m && m.bid != null ? `Kometa's simulated ${m.symbol} is at ${num((m.bid + m.ask) / 2, digits(m.bid))}; the price above is the real market.` : "";
+}
+function journeyTable(js, empty) {
+  return table([["Started", r => stamp(r.started)], ["Strategy", r => `<span class="muted">${esc(r.strategy)}</span>`],
+    ["Market", r => `<span class="tag ${esc(r.side)}">${esc(r.side)}</span> ${esc(r.symbol)}`],
+    ["Status", r => `<span class="tag ${statusCls(r)}">${esc(r.status)}</span>`], ["Steps", r => r.n_steps, "n"],
+    ["R", r => r.r == null ? '<span class="muted">–</span>' : `<b class="${cls(r.r)}">${signed(r.r)}</b>`, "n"],
+    ["P&L", r => r.pnl == null ? '<span class="muted">–</span>' : `<span class="${cls(r.pnl)}">${signed(r.pnl)}</span>`, "n"]],
+    js, empty, r => `class="click" data-ref="${esc(r.ref)}"`);
+}
+function histogram(rs) {
+  const svg = $("hist"), W = svg.clientWidth || 500, H = svg.clientHeight || 230;
+  if (!rs.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${css("--muted")}" font-size="13">no closed trades yet</text>`; return; }
+  const edges = [-Infinity, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 3, Infinity], labels = ["< -1.5", "-1.5", "-1", "-0.5", "0", "0.5", "1", "1.5", "2", "3+"];
+  const counts = labels.map((_, i) => rs.filter(r => r >= edges[i] && r < edges[i + 1]).length), mx = Math.max(...counts, 1);
+  const bw = (W - 20) / labels.length;
+  svg.innerHTML = counts.map((c, i) => { const h = c / mx * (H - 44), x = 10 + i * bw, col = edges[i + 1] <= 0 ? css("--down") : css("--up");
+    return `<rect x="${x + 3}" y="${H - 22 - h}" width="${bw - 6}" height="${h}" rx="3" fill="${col}" opacity=".75"/>` +
+      (c ? `<text x="${x + bw / 2}" y="${H - 27 - h}" text-anchor="middle" fill="${css("--ink")}" font-size="11">${c}</text>` : "") +
+      `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" fill="${css("--faint")}" font-size="11">${labels[i]}R</text>`; }).join("");
+}
+
+/* charts: TradingView Lightweight Charts, with an SVG fallback */
+const charts = {};
+function themeOpts() {
+  return { layout: { background: { type: "solid", color: "transparent" }, textColor: css("--muted"), fontSize: 11 },
+    grid: { vertLines: { color: css("--line") }, horzLines: { color: css("--line") } },
+    rightPriceScale: { borderColor: css("--line") }, timeScale: { borderColor: css("--line"), timeVisible: true, secondsVisible: false },
+    crosshair: { mode: 0 }, autoSize: true };
+}
+function lineChart(id, values) {
+  const el = $(id);
+  if (!LW) { el.innerHTML = `<div class="empty">chart library unavailable</div>`; return; }
+  if (!values.length) { if (!charts[id]) el.innerHTML = `<div class="empty">no closed trades yet</div>`; return; }
+  let c = charts[id];
+  if (!c) {
+    el.innerHTML = "";
+    const chart = LW.createChart(el, {...themeOpts(), timeScale: {visible: false}, handleScroll: false, handleScale: false});
+    c = charts[id] = {chart, line: chart.addLineSeries({color: css("--gold"), lineWidth: 2, priceLineVisible: false}),
+      peak: chart.addLineSeries({color: css("--faint"), lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false})};
+  }
+  // x is the trade number; the library wants times, so trade n is placed on day n
+  const t0 = 1577836800; let pk = -Infinity;
+  c.line.setData(values.map((v, i) => ({time: t0 + i * 86400, value: v})));
+  c.peak.setData(values.map((v, i) => { pk = Math.max(pk, v); return {time: t0 + i * 86400, value: pk}; }));
+  c.chart.timeScale().fitContent();
+}
+function equityChart(points) {
+  if (!LW || points.length < 2) return;
+  let c = charts.eq;
+  if (!c) { const chart = LW.createChart($("eqChart"), themeOpts());
+    c = charts.eq = {chart, s: chart.addAreaSeries({lineColor: css("--accent2"), topColor: "rgba(54,197,240,.25)", bottomColor: "rgba(54,197,240,0)", lineWidth: 2, priceLineVisible: false})}; }
+  const seen = new Set();
+  c.s.setData(points.map(([t, v]) => ({time: Math.floor(Date.parse(t) / 1000), value: v})).filter(p => !seen.has(p.time) && seen.add(p.time)));
+}
+
+let candle = null, candleFitted = false, showPatterns = false;
+try { showPatterns = localStorage.getItem("kometa.patterns") === "1"; } catch (e) {}
+const PAT_ABBR = {bullish_engulfing: "Eng", bearish_engulfing: "Eng", hammer: "Ham", inverted_hammer: "InvH", hanging_man: "HMan",
+  shooting_star: "SStar", bullish_harami: "Har", bearish_harami: "Har", piercing_line: "Pierce", dark_cloud_cover: "DCC",
+  tweezers_top: "TwzT", tweezers_bottom: "TwzB", morning_star: "MStar", evening_star: "EStar", three_white_soldiers: "3WS",
+  three_black_crows: "3BC", bullish_kicker: "Kick", bearish_kicker: "Kick"};
+function patLabel() { $("patBtn").textContent = "Patterns: " + (showPatterns ? "on" : "off"); }
+$("patBtn").onclick = () => { showPatterns = !showPatterns; try { localStorage.setItem("kometa.patterns", showPatterns ? "1" : "0"); } catch (e) {} patLabel(); renderCandles(); };
+patLabel();
+function ensureCandles() {
+  if (candle || !LW) return;
+  const chart = LW.createChart($("candles"), themeOpts());
+  const series = chart.addCandlestickSeries({upColor: css("--up"), downColor: css("--down"), borderVisible: false, wickUpColor: css("--up"), wickDownColor: css("--down")});
+  const vol = chart.addHistogramSeries({priceFormat: {type: "volume"}, priceScaleId: "", color: "rgba(124,131,255,.35)"});
+  vol.priceScale().applyOptions({scaleMargins: {top: 0.9, bottom: 0}});
+  candle = {chart, series, vol, lines: [], data: []};
+  chart.subscribeCrosshairMove((p) => {
+    const d = p && p.seriesData ? p.seriesData.get(series) : null;
+    if (d) ohlcLabel(d.open, d.high, d.low, d.close);
+  });
+}
+function ohlcLabel(o, h, l, c) {
+  const dg = digits(c);
+  $("ohlc").innerHTML = `O <b>${num(o, dg)}</b> H <b>${num(h, dg)}</b> L <b>${num(l, dg)}</b> C <b class="${c >= o ? "up" : "down"}">${num(c, dg)}</b> <span class="muted">${tf}</span>`;
+}
+$("tfs").innerHTML = TFS.map(t => `<button data-tf="${t}" class="${t === tf ? "on" : ""}">${t}</button>`).join("");
+$("tfs").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; tf = b.dataset.tf; try { localStorage.setItem("kometa.tf", tf); } catch (err) {}
+  document.querySelectorAll("#tfs button").forEach(x => x.classList.toggle("on", x === b)); candleFitted = false; renderCandles(); };
+
+async function renderCandles() {
+  const m = market[0]; if (!m) return;
+  const dg = digits(m.bid || 1);
+  $("chartTitle").textContent = `${m.symbol} · Kometa's feed`;
+  const mid = m.bid != null ? (m.bid + m.ask) / 2 : null;
+  $("q-mid").innerHTML = mid == null ? "–" : `<span class="goldc">${num(mid, dg)}</span>`;
+  $("q-ba").innerHTML = `bid <b>${num(m.bid, dg)}</b> · ask <b>${num(m.ask, dg)}</b>`;
+  $("q-sp").textContent = m.bid != null ? `spread ${num(m.ask - m.bid, dg)}${m.time ? " · quote " + stamp(m.time) : ""}` : "";
+  if (!candle) { svgFallback(m); return; }
+  const cs = await get(`/api/candles?symbol=${encodeURIComponent(m.symbol)}&tf=${tf}&limit=1500`);
+  candle.data = cs;
+  candle.series.setData(cs.map(c => ({time: c.t, open: c.o, high: c.h, low: c.l, close: c.c})));
+  candle.vol.setData(cs.map(c => ({time: c.t, value: c.ticks, color: c.c >= c.o ? "rgba(47,208,138,.18)" : "rgba(255,107,90,.18)"})));
+  const times = cs.map(c => c.t);
+  const at = (iso) => { const t = Date.parse(iso) / 1000; let lo = 0, hi = times.length - 1, r = -1;
+    while (lo <= hi) { const md = (lo + hi) >> 1; if (times[md] <= t) { r = md; lo = md + 1; } else hi = md - 1; } return r < 0 ? null : times[r]; };
+  const marks = [];
+  for (const t of m.trades) {
+    if (t.shadow) continue;
+    const te = at(t.entry_time), tx = at(t.exit_time);
+    if (te) marks.push({time: te, position: t.side === "buy" ? "belowBar" : "aboveBar", shape: t.side === "buy" ? "arrowUp" : "arrowDown", color: css("--accent"), text: t.side.toUpperCase()});
+    if (tx) marks.push({time: tx, position: t.side === "buy" ? "aboveBar" : "belowBar", shape: "circle", color: t.r > 0 ? css("--up") : css("--down"), text: `${t.r > 0 ? "+" : ""}${t.r.toFixed(2)}R`});
+  }
+  if (showPatterns) {
+    const pats = await get(`/api/patterns?symbol=${encodeURIComponent(m.symbol)}&tf=${tf}&limit=1500`);
+    for (const p of pats) {
+      const bull = p.bias === "bull";
+      marks.push({time: p.t, position: bull ? "belowBar" : "aboveBar", shape: "square", size: 0.5,
+        color: bull ? "rgba(47,208,138,.75)" : p.bias === "bear" ? "rgba(255,107,90,.75)" : css("--faint"),
+        text: p.names.map(n => PAT_ABBR[n] || n).join("+")});
+    }
+  }
+  marks.sort((x, y) => x.time - y.time);
+  candle.series.setMarkers(marks);
+  candle.lines.forEach(l => candle.series.removePriceLine(l)); candle.lines = [];
+  for (const p of m.positions) {
+    candle.lines.push(candle.series.createPriceLine({price: p.entry, color: css("--accent"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: `${p.pending ? "pending " : ""}${p.side} entry`}));
+    if (p.stop != null) candle.lines.push(candle.series.createPriceLine({price: p.stop, color: css("--down"), lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "stop"}));
+  }
+  if (!candleFitted && cs.length) { candle.chart.timeScale().setVisibleLogicalRange({from: Math.max(0, cs.length - 150), to: cs.length + 4}); candleFitted = true; }
+  const last = cs[cs.length - 1]; if (last) ohlcLabel(last.o, last.h, last.l, last.c);
+}
+function svgFallback(m) {
+  const el = $("candles"); if (!m.mids.length) return;
+  const W = el.clientWidth || 800, H = el.clientHeight || 440, v = m.mids.map(p => p[1]), lo = Math.min(...v), hi = Math.max(...v);
+  const d = m.mids.map((p, i) => `${i ? "L" : "M"}${(i / (m.mids.length - 1) * W).toFixed(1)},${(8 + (hi - p[1]) / (hi - lo || 1) * (H - 16)).toFixed(1)}`).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><path d="${d}" fill="none" stroke="${css("--gold")}" stroke-width="1.5"/></svg>`;
+}
+
+/* TradingView widgets: the real market, for reference only */
+function tvEmbed(el, script, cfg) {
+  el.innerHTML = `<div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div></div>`;
+  const s = document.createElement("script"); s.type = "text/javascript"; s.async = true;
+  s.src = `https://s3.tradingview.com/external-embedding/${script}`; s.innerHTML = JSON.stringify(cfg);
+  el.firstChild.appendChild(s);
+}
+const darkUI = () => !matchMedia("(prefers-color-scheme: light)").matches;
+let tvDone = false, tvqDone = false;
+function ensureTV() {
+  if (tvDone) return; tvDone = true;
+  // TradingView's iframe chart widget: renders reliably inside a tab that was hidden when the page loaded
+  const q = new URLSearchParams({symbol: "OANDA:XAUUSD", interval: "15", timezone: "Etc/UTC", theme: darkUI() ? "dark" : "light",
+    style: "1", locale: "en", allow_symbol_change: "1", withdateranges: "1", hideideas: "1", utm_source: "kometa-hub"});
+  $("tvChart").innerHTML = `<iframe title="TradingView XAUUSD chart" src="https://s.tradingview.com/widgetembed/?${q}" style="width:100%;height:100%;border:0" allowtransparency="true" loading="lazy"></iframe>`;
+}
+function ensureTVQuote() {
+  if (tvqDone) return; tvqDone = true;
+  tvEmbed($("tvQuote"), "embed-widget-single-quote.js", {symbol: "OANDA:XAUUSD", width: "100%", isTransparent: true, colorTheme: darkUI() ? "dark" : "light", locale: "en"});
+}
+
+/* feed */
+const FILTERS = [["all", "All"], ["trading", "Trading"], ["risk", "Risk"], ["system", "System"]];
+const inFilter = (i) => feedFilter === "all" ||
+  (feedFilter === "trading" && ["signal", "intent", "order", "fill", "trade"].includes(i.step)) ||
+  (feedFilter === "risk" && ["decision", "halt"].includes(i.step)) ||
+  (feedFilter === "system" && ["stage", "alert", "config", "request"].includes(i.step));
+$("filters").innerHTML = FILTERS.map(([k, l]) => `<button data-f="${k}" class="${k === "all" ? "on" : ""}">${l}</button>`).join("");
+$("filters").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; feedFilter = b.dataset.f;
+  document.querySelectorAll("#filters button").forEach(x => x.classList.toggle("on", x === b)); $("feed").innerHTML = ""; feedItems.filter(inFilter).slice(-150).forEach(i => addEv(i, false)); };
+function addEv(i, fresh) {
+  const box = $("feed"); const empty = box.querySelector(".empty"); if (empty) empty.remove();
+  const d = document.createElement("div");
+  d.className = `ev tone-${i.tone}` + (fresh ? " new" : "") + (i.ref ? " linked" : "");
+  if (i.ref) { d.dataset.ref = i.ref; d.title = "click for the full trade journey"; }
+  d.innerHTML = `<span class="t">${hhmm(i.at)}</span><span class="k">${esc(i.step)}</span><span class="x">${esc(i.text)}${i.strategy ? `<div class="who">${esc(i.strategy)}</div>` : ""}</span>`;
+  box.prepend(d);
+  while (box.children.length > 150) box.lastChild.remove();
+}
+async function pollFeed() {
+  const f = await get(`/api/feed?after=${feedSeq}&limit=200`);
+  const fresh = feedSeq > 0;
+  for (const i of f.items) { feedItems.push(i); if (inFilter(i)) addEv(i, fresh); }
+  if (feedItems.length > 600) feedItems = feedItems.slice(-600);
+  feedSeq = f.seq;
+}
+
+/* live tables */
+function currentR(p) {
+  if (p.mark == null || p.stop == null || p.pending) return null;
+  const risk = p.side === "buy" ? p.entry - p.stop : p.stop - p.entry;
+  return risk > 0 ? (p.side === "buy" ? p.mark - p.entry : p.entry - p.mark) / risk : null;
+}
+function renderPositions() {
+  const open = positions.filter(p => !p.pending).length;
+  $("k-pos").textContent = open; $("k-pending").textContent = `${positions.length - open} pending entr${positions.length - open === 1 ? "y" : "ies"}`;
+  $("positions").innerHTML = table([
+    ["Symbol", r => `<b>${esc(r.symbol)}</b>`], ["Side", r => `<span class="tag ${esc(r.side)}">${esc(r.side)}</span>${r.pending ? ' <span class="muted">pending</span>' : ""}`],
+    ["Lots", r => num(r.lots), "n"], ["Entry", r => num(r.entry, digits(r.entry)), "n"], ["Stop", r => num(r.stop, digits(r.entry)), "n"],
+    ["Mark", r => num(r.mark, digits(r.entry)), "n"], ["Now", r => { const R = currentR(r); return R == null ? '<span class="muted">–</span>' : `<b class="${cls(R)}">${signed(R)}R</b>`; }, "n"],
+    ["Strategy", r => `<span class="muted">${esc(r.strategy)}</span>`]], positions, "flat: no open positions");
+}
+function renderTrades(trades) {
+  $("trades").innerHTML = table([
+    ["Closed", r => stamp(r.exit_time)], ["Strategy", r => esc(r.strategy) + (r.shadow ? ' <span class="tag">shadow</span>' : "")],
+    ["Symbol", r => esc(r.symbol)], ["Side", r => `<span class="tag ${esc(r.side)}">${esc(r.side)}</span>`],
+    ["Entry", r => num(r.entry, digits(r.entry)), "n"], ["Exit", r => num(r.exit, digits(r.entry)), "n"],
+    ["P&L", r => r.shadow ? '<span class="muted">–</span>' : `<span class="${cls(r.pnl)}">${signed(r.pnl)}</span>`, "n"],
+    ["R", r => `<b class="${cls(r.r)}">${signed(r.r)}</b>`, "n"]], trades, "none yet", r => r.shadow ? "" : `class="click" data-ref="${esc(r.id)}"`);
+}
+
+/* other views */
+async function renderTradesView() { $("journeys").innerHTML = journeyTable(await get("/api/journeys?limit=300"), "no trade journeys yet"); }
+
+async function renderCatalog() {
+  const [cat, trades] = await Promise.all([get("/api/catalog"), get("/api/trades?limit=500")]);
+  const stats = {};
+  for (const t of trades) { if (t.shadow) continue; const k = t.strategy.split(" ")[0]; (stats[k] = stats[k] || []).push(t.r); }
+  $("catalog").innerHTML = cat.length ? cat.map(x => {
+    const rs = stats[x.strategy_id] || [], tot = rs.reduce((a, b) => a + b, 0);
+    return `<div class="card ${x.trading ? "on" : ""}">
+      <div class="t"><span class="tag ${x.plumbing ? "" : x.style === "Scalping" ? "pending" : "open"}">${esc(x.style)}</span><b>${esc(x.strategy_id)}</b><span class="muted">${esc(x.version)}</span></div>
+      <div class="d">${esc(x.description || "")}</div>
+      <div class="m">${esc(x.symbols.join(", "))} · ${esc(x.timeframes.join(" + "))} · expects ~${esc(x.expected.trades_per_month)} trades/month${x.plumbing ? " · plumbing test, not a trading method" : " · candidate, not validated"}</div>
+      <div class="m">This demo: ${rs.length} trades, <span class="${cls(tot)}">${signed(tot)}R</span> · stage <span class="tag ${esc(x.stage || "")}">${esc(x.stage || "–")}</span></div>
+      <div><button class="toggle ${x.trading ? "on" : ""}" data-pt="${esc(x.strategy_id)}|${esc(x.version)}|${x.trading ? "0" : "1"}">${x.trading ? "● Trading — click to stop" : "○ Off — click to paper trade"}</button></div>
+    </div>`; }).join("") : `<div class="empty">no strategies available in this process</div>`;
+  $("catalog").querySelectorAll("[data-pt]").forEach(b => b.onclick = async () => {
+    const [sid, v, on] = b.dataset.pt.split("|");
+    b.disabled = true;
+    try { const r = await post("/api/control/paper-trade", {strategy_id: sid, version: v, on: on === "1"}); toast(`${sid}: ${r.stage === "demo_only" ? "paper trading" : "stopped (positions closed)"}`); }
+    catch (e) { toast(e.message); }
+    renderCatalog(); renderStrategies();
+  });
+}
+
+async function renderStrategies() {
+  renderCatalog().catch(() => {});
+  const [vers, alloc, trades] = await Promise.all([get("/api/versions"), get("/api/allocation"), get("/api/trades?limit=500")]);
+  $("versions").innerHTML = table([
+    ["Version", r => `<b>${esc(r.strategy_id)}</b> <span class="muted">${esc(r.version)}</span>`],
+    ["Stage", r => `<span class="tag ${esc(r.stage)}">${esc(r.stage)}</span>`],
+    ["Ladder", r => { const i = LADDER.indexOf(r.stage === "demo_only" ? "shadow" : r.stage);
+      return `<span class="ladder">${LADDER.map((s, j) => `<span class="${j < i ? "hit" : j === i ? "now" : ""}" title="${s}"></span>`).join("")}</span>`; }],
+    ["Since", r => stamp(r.since)], ["Trades", r => r.trades, "n"], ["Total R", r => `<b class="${cls(r.total_r)}">${signed(r.total_r)}</b>`, "n"],
+    ["", r => r.stage === "retired" ? "" : `<button class="act danger" data-retire="${esc(r.strategy_id)}|${esc(r.version)}">Retire</button>`]], vers, "no versions registered");
+  $("versions").querySelectorAll("[data-retire]").forEach(b => b.onclick = async () => {
+    const [sid, v] = b.dataset.retire.split("|"); const reason = prompt(`Retire ${sid} ${v}? This cannot be undone. Reason:`);
+    if (!reason) return; try { await post("/api/control/retire", {strategy_id: sid, version: v, reason}); toast(`${sid} ${v} retired`); renderStrategies(); } catch (e) { toast(e.message); } });
+  const shares = Object.entries(alloc.shares || {}).sort((a, b) => b[1] - a[1]);
+  $("allocAt").textContent = alloc.at ? "rebalanced " + stamp(alloc.at) : "";
+  $("alloc").innerHTML = shares.length ? shares.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span class="track"><i style="width:${(v * 100).toFixed(1)}%"></i></span><span class="mono">${(v * 100).toFixed(1)}%</span></div>`).join("")
+    : `<div class="empty">No live versions to allocate yet. Micro and demo_only versions trade at their stage's fixed fraction until they earn a track record.</div>`;
+  const by = {}; for (const t of trades) { const k = t.strategy + (t.shadow ? " · shadow" : ""); (by[k] = by[k] || []).push(t); }
+  const rows = Object.entries(by).map(([k, ts]) => { const rs = ts.map(t => t.r), w = rs.filter(r => r > 0);
+    let eq = 0, pk = 0, dd = 0; for (const r of [...rs].reverse()) { eq += r; pk = Math.max(pk, eq); dd = Math.max(dd, pk - eq); }
+    return {k, n: ts.length, win: w.length / ts.length, avg: sum(rs) / ts.length, tot: sum(rs), dd, pnl: ts.some(t => !t.shadow) ? sum(ts.map(t => t.shadow ? 0 : t.pnl)) : null}; });
+  $("perVersion").innerHTML = table([["Version", r => esc(r.k)], ["Trades", r => r.n, "n"], ["Win rate", r => pct(r.win, 0), "n"],
+    ["Avg R", r => `<span class="${cls(r.avg)}">${signed(r.avg)}</span>`, "n"], ["Total R", r => `<b class="${cls(r.tot)}">${signed(r.tot)}</b>`, "n"],
+    ["Max DD (R)", r => num(r.dd), "n"], ["Net P&L", r => r.pnl == null ? '<span class="muted">–</span>' : `<span class="${cls(r.pnl)}">${signed(r.pnl)}</span>`, "n"]], rows);
+}
+
+async function renderRisk() {
+  const [decs, lim] = await Promise.all([get("/api/decisions?limit=200"), get("/api/limits")]); limitsCache = lim;
+  const s = S, a = s && s.account;
+  $("riskState").innerHTML = s ? `
+    <div style="margin-bottom:10px"><span class="state ${s.halt === "NORMAL" ? "good" : "bad"}">${s.halt === "NORMAL" ? "TRADING ALLOWED" : esc(s.halt)}</span></div>
+    ${s.halt_reason ? `<div class="down" style="margin-bottom:10px">${esc(s.halt_reason)}</div>` : ""}
+    <table><tbody>
+      <tr><td class="muted">Open risk</td><td class="n">${s.open_risk == null ? "unknown" : num(s.open_risk)}${a && s.open_risk != null ? ` <span class="muted">(${pct(s.open_risk / a.equity)})</span>` : ""}</td></tr>
+      <tr><td class="muted">Drawdown from peak</td><td class="n">${a ? pct(a.drawdown) : "–"}</td></tr>
+      <tr><td class="muted">Day P&amp;L</td><td class="n ${a ? cls(a.day_pnl) : ""}">${a ? signed(a.day_pnl) : "–"}</td></tr>
+      <tr><td class="muted">Decisions signed</td><td class="n">${lim.sequence ?? "–"}</td></tr>
+    </tbody></table>
+    <div class="note">A full halt clears only with an owner-signed resume token. Daily and weekly halts clear by themselves at the next day or week.</div>` : "";
+  const L = lim.limits || {};
+  const row = (k, v, h) => `<tr><td class="muted">${k}${h ? help(h) : ""}</td><td class="n">${v}</td></tr>`;
+  $("limits").innerHTML = lim.limits ? `<table><tbody>
+    ${row("Risk per trade", `${pct(L.risk_per_trade_default, 1)} default · ${pct(L.risk_per_trade_max, 1)} max`, "Money risked to the stop on one trade, as a share of equity.")}
+    ${row("Open risk per strategy", pct(L.open_risk_per_strategy_max, 1))}${row("Open risk total", pct(L.open_risk_total_max, 1))}
+    ${row("Daily loss halt", pct(L.daily_loss_halt, 1))}${row("Weekly loss halt", pct(L.weekly_loss_halt, 1))}${row("Full halt drawdown", pct(L.peak_drawdown_full_halt, 1))}
+    ${row("Max leverage", num(L.leverage_notional_max, 0) + "×", "Total notional value of open positions ÷ equity.")}
+    ${row("Gold max lots", L.per_symbol_max_lots ? num(L.per_symbol_max_lots.XAUUSD ?? L.per_symbol_max_lots.default, 2) : "–")}
+    ${row("Stop at least", num(L.min_stop_spreads, 1) + "× spread")}${row("Decision expiry", L.decision_ttl_seconds + " s")}
+    </tbody></table><div class="note mono" title="${esc(lim.limits_hash)}">config sha256 ${esc((lim.limits_hash || "").slice(0, 16))}…</div>` : `<div class="empty">no limits available</div>`;
+  const counts = {}; for (const d of decs) for (const r of d.reasons) { const k = r.replace(/[\d.]+/g, "#"); counts[k] = (counts[k] || 0) + 1; }
+  const top = Object.entries(counts).sort((x, y) => y[1] - x[1]).slice(0, 8), mx = top.length ? top[0][1] : 1;
+  $("reasons").innerHTML = top.length ? top.map(([k, n]) => `<div class="row" style="grid-template-columns: 1fr 90px 36px"><span class="muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(k)}">${esc(k)}</span><span class="track"><i style="width:${n / mx * 100}%"></i></span><span class="mono">${n}</span></div>`).join("")
+    : `<div class="empty">every recent decision was a clean approval</div>`;
+  $("decisions").innerHTML = table([["Time", r => stamp(r.at)], ["#", r => r.sequence, "n"],
+    ["Verdict", r => `<span class="tag ${r.verdict === "reject" ? "rejected" : r.verdict === "resize" ? "pending" : "open"}">${esc(r.verdict)}</span>`],
+    ["Lots", r => num(r.lots), "n"], ["Reasons", r => `<span class="muted">${esc(r.reasons.join("; ")) || "all checks passed"}</span>`, "wrap"]], decs);
+  fillGuide(lim);
+}
+
+async function renderExecution() {
+  const ex = await get("/api/execution");
+  $("execSym").innerHTML = table([["Symbol", r => `<b>${esc(r.symbol)}</b>`], ["Fills", r => r.fills, "n"],
+    ["Avg slippage", r => num(r.avg_slippage, 4), "n"], ["Model expects", r => num(r.avg_modelled, 4), "n"],
+    ["Worse than model", r => `${r.worse_than_model} of ${r.fills}`, "n"],
+    ["Verdict", r => r.avg_slippage == null ? "–" : r.avg_slippage <= r.avg_modelled ? '<span class="up">within the cost model</span>' : '<span class="warn">worse than the model</span>'],
+    ["Avg latency", r => num(r.avg_latency_ms, 0) + " ms", "n"], ["Max latency", r => num(r.max_latency_ms, 0) + " ms", "n"]], ex.symbols, "no fills yet");
+  $("fills").innerHTML = table([["Time", r => stamp(r.at)], ["Symbol", r => esc(r.symbol)], ["Side", r => `<span class="tag ${esc(r.side)}">${esc(r.side)}</span>`],
+    ["Requested", r => num(r.requested, digits(r.filled)), "n"], ["Filled", r => num(r.filled, digits(r.filled)), "n"],
+    ["Slippage", r => r.slippage == null ? "–" : `<span class="${r.slippage > r.modelled ? "warn" : r.slippage > 0 ? "" : "up"}">${signed(r.slippage, 3)}</span>`, "n"],
+    ["Model", r => num(r.modelled, 3), "n"], ["Spread", r => num(r.spread, 3), "n"], ["Latency", r => num(r.latency_ms, 0) + " ms", "n"]],
+    ex.fills, "no fills yet", r => `class="click" data-ref="${esc(r.ref)}"`);
+}
+
+async function renderAlerts() {
+  const [al, sm] = await Promise.all([get("/api/alerts?limit=200"), get("/api/summary")]);
+  $("alerts").innerHTML = table([["Time", r => stamp(r.at)], ["", r => `<span class="sev ${esc(r.severity)}"></span><span class="muted">${esc(r.id)}</span>`],
+    ["Kind", r => `<b>${esc(r.kind)}</b>`], ["Message", r => esc(r.message.split("\n")[0]), "wrap"],
+    ["", r => r.open ? `<button class="act" data-ack="${esc(r.id)}">Acknowledge</button>` : r.severity === "critical" ? '<span class="muted">acked</span>' : ""]], al);
+  $("alerts").querySelectorAll("[data-ack]").forEach(b => b.onclick = async () => { try { await post(`/api/alerts/${b.dataset.ack}/ack`); toast("acknowledged"); renderAlerts(); tick(); } catch (e) { toast(e.message); } });
+  $("summary").textContent = sm.text;
+}
+
+async function renderAudit() {
+  const type = $("auditType").value;
+  const all = await get(`/api/audit?limit=400${type && type !== "*" ? "&event_type=" + encodeURIComponent(type) : ""}`);
+  const rows = type ? all : all.filter(r => r.kind !== "StageSnapshot");
+  const sel = $("auditType"), have = new Set([...sel.options].map(o => o.value));
+  for (const r of all) if (!have.has(r.kind)) { have.add(r.kind); sel.add(new Option(r.kind, r.kind)); }
+  $("audit").innerHTML = table([["Recorded", r => stamp(r.at)], ["Event", r => `<b>${esc(r.kind)}</b>`], ["Actor", r => `<span class="muted">${esc(r.payload.actor)}</span>`],
+    ["Payload", r => `<span class="mono muted" style="font-size:12px">${esc(JSON.stringify(r.payload.data)).slice(0, 220)}</span>`, "wrap"],
+    ["Hash", r => `<span class="mono muted" title="${esc(r.hash)}">${esc(r.hash.slice(0, 10))}…</span>`]], rows);
+}
+$("auditType").onchange = renderAudit;
+
+function fillGuide(lim) {
+  const L = lim && lim.limits; if (!L) return;
+  const set = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+  set("gStopSp", num(L.min_stop_spreads, 1)); set("gPerTrade", pct(L.risk_per_trade_max, 1)); set("gPerStrat", pct(L.open_risk_per_strategy_max, 1));
+  set("gTotal", pct(L.open_risk_total_max, 1)); set("gSameCcy", L.same_currency_same_direction_max_positions); set("gLev", num(L.leverage_notional_max, 0));
+  set("gXauLots", L.per_symbol_max_lots ? num(L.per_symbol_max_lots.XAUUSD ?? L.per_symbol_max_lots.default, 1) : "–");
+  set("gMargin", num(L.min_free_margin_ratio, 1)); set("gNews", L.news_blackout_minutes);
+  const c = L.no_new_entries_after; set("gCutoff", c ? `${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][c.weekday]} ${String(c.at).slice(0, 5)} ${c.tz}` : "–");
+  set("gDay", pct(L.daily_loss_halt, 0)); set("gWeek", pct(L.weekly_loss_halt, 0)); set("gPeak", pct(L.peak_drawdown_full_halt, 0));
+}
+
+/* research (validation reports) */
+const CHECK_EXPL = {
+  oos_trades: "Trades in the unseen test months. Too few and any result could be luck.",
+  oos_profit_factor: "Gross wins ÷ gross losses in the unseen months, after all costs.",
+  deflated_sharpe_prob: "Probability the Sharpe ratio is real after correcting for how many variants were tried.",
+  "mc_dd_p95_at_0.5pct": "Monte Carlo: 95th-percentile drawdown when the trades are reshuffled, at 0.5% risk per trade.",
+  stability_variants_passing: "Parameters nudged ±20%: how many variants still work (a fragile peak fails).",
+  cross_market_passing: "Markets out of the set where the same rules still work.",
+  max_monthly_return: "Suspiciously good months usually mean a bug or lookahead; too high fails.",
+  holdout_profit_factor: "Profit factor in the locked final year that no search ever saw.",
+};
+let researchCache = [], researchOpen = null;
+async function renderResearch() {
+  researchCache = await get("/api/research");
+  $("research").innerHTML = table([
+    ["Strategy", r => `<b>${esc(r.strategy_id)}</b> <span class="muted">${esc(r.version)}</span>`],
+    ["Data", r => r.synthetic ? '<span class="tag">synthetic</span>' : `<span class="tag open">real</span> <span class="muted">${esc(Object.values(r.data_versions || {})[0] || "").slice(0, 18)}</span>`],
+    ["Tested", r => r.research_window ? `${stamp(r.research_window[0]).slice(0, 5)} ${esc(String(r.research_window[0]).slice(0, 4))} → ${esc(String(r.research_window[1]).slice(0, 4))}` : "–"],
+    ["OOS trades", r => r.oos_trades, "n"],
+    ["Checks", r => `${r.checks.filter(c => c.passed).length} / ${r.checks.length}`, "n"],
+    ["Verdict", r => r.passed ? (r.synthetic ? '<span class="tag pending">passed on synthetic only</span>' : '<span class="tag open">passed: shadow candidate</span>') : '<span class="tag rejected">failed</span>'],
+  ], researchCache, "no validation reports yet", r => `class="click" data-report="${esc(r.name)}"`);
+  $("research").querySelectorAll("[data-report]").forEach(tr => tr.onclick = () => { researchOpen = tr.dataset.report; renderReport(); });
+  if (researchOpen) renderReport();
+}
+function renderReport() {
+  const r = researchCache.find(x => x.name === researchOpen); if (!r) return;
+  const box = $("rDetail"); box.hidden = false;
+  const checks = r.checks.map(c => `<tr><td>${c.passed ? '<b class="up">pass</b>' : '<b class="down">fail</b>'}</td><td><b>${esc(c.name)}</b><div class="muted" style="white-space:normal">${esc(CHECK_EXPL[c.name] || "")}</div></td>
+    <td class="n">${typeof c.value === "number" ? num(c.value, 3) : esc(c.value)}</td><td class="n muted">${esc(c.op)} ${esc(c.threshold)}</td></tr>`).join("");
+  const learned = table([["Trained on", w => `${esc(String(w.train_start).slice(0, 10))} → ${esc(String(w.train_end).slice(0, 10))}`],
+    ["Learned parameters", w => `<span class="mono muted">${esc(Object.entries(w.params).map(([k, v]) => `${k}=${typeof v === "number" ? +v.toFixed(3) : v}`).join("  "))}</span>`, "wrap"],
+    ["Train score", w => num(w.train_score, 2), "n"],
+    ["Then traded (unseen)", w => `${esc(String(w.test_start).slice(0, 10))} → ${esc(String(w.test_end).slice(0, 10))}`],
+    ["Trades", w => w.test_trades, "n"], ["Profit factor", w => `<span class="${w.test_pf >= 1 ? "up" : "down"}">${typeof w.test_pf === "number" ? num(w.test_pf) : esc(w.test_pf)}</span>`, "n"],
+    ["Sharpe", w => typeof w.test_sharpe === "number" ? num(w.test_sharpe) : esc(w.test_sharpe), "n"]], r.windows, "no walk-forward windows (not enough data)");
+  box.innerHTML = `<h2>${esc(r.strategy_id)} ${esc(r.version)} · ${r.passed ? '<span class="up">passed</span>' : '<span class="down">failed</span>'}
+      <span class="right">${r.html ? `<a href="/research/${encodeURIComponent(r.name)}.html" target="_blank" rel="noopener">full report ↗</a>` : ""}</span></h2>
+    ${r.synthetic ? '<div class="caveat">Validated on synthetic prices: plumbing only, never eligible for promotion.</div>' : ""}
+    <div class="grid2" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:10px">
+      <div><h2>Gates</h2><table><tbody>${checks}</tbody></table>${r.warnings.length ? `<div class="note">${r.warnings.map(esc).join("<br>")}</div>` : ""}</div>
+      <div><h2>Unseen-months result (cumulative R)</h2><div class="chart sm" id="rCum"></div><div class="note">Final parameters: <span class="mono">${esc(JSON.stringify(r.final_params))}</span></div></div>
+    </div>
+    <h2 style="margin-top:14px">What it learned, window by window</h2><div class="scroll">${learned}</div>`;
+  let eq = 0; delete charts.rCum; lineChart("rCum", (r.oos_r || []).filter(x => x != null).map(x => (eq += x)));
+}
+
+/* economic calendar (real wall-clock time, even when the market is simulated) */
+function untilText(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 0) return m > -60 ? `${-m} min ago` : `${Math.round(-m / 60)} h ago`;
+  if (m < 60) return `in ${m} min`;
+  if (m < 48 * 60) return `in ${Math.floor(m / 60)} h ${m % 60} min`;
+  return `in ${Math.round(m / 1440)} days`;
+}
+function newsTable(cal, allEvents) {
+  const now = Date.now(), rel = new Set(cal.relevant_currencies || []);
+  let rows = cal.events || [];
+  if (!allEvents) rows = rows.filter(e => e.impact === "high" || e.impact === "medium");
+  return table([
+    ["When (UTC)", r => `${stamp(r.time)} <span class="muted">${untilText(Date.parse(r.time) - now)}</span>`],
+    ["Impact", r => `<span class="tag ${r.impact === "high" ? "rejected" : r.impact === "medium" ? "pending" : ""}">${esc(r.impact)}</span>`],
+    ["Ccy", r => rel.has(r.currency) ? `<b class="goldc">${esc(r.currency)}</b>` : esc(r.currency)],
+    ["Event", r => esc(r.name), "wrap"], ["Forecast", r => esc(r.forecast || "–"), "n"], ["Previous", r => esc(r.previous || "–"), "n"],
+    ["Blocks entries", r => r.impact === "high" && rel.has(r.currency) ? (cal.applied_to_trading ? '<span class="down">yes</span>' : '<span class="muted">would (paper/live)</span>') : '<span class="muted">no</span>']],
+    rows, cal.fetched_at ? "no medium or high impact events this week" : "calendar not fetched yet (needs internet)",
+    r => Date.parse(r.time) < now ? 'style="opacity:.5"' : "");
+}
+async function renderNews() {
+  const cal = await get("/api/calendar");
+  if (!cal.source) { $("news").innerHTML = `<div class="empty">no calendar configured</div>`; return; }
+  const meta = `${cal.fresh ? "fresh" : "STALE"} · fetched ${cal.fetched_at ? stamp(cal.fetched_at) + " UTC" : "never"}`;
+  $("newsMeta").textContent = meta; $("newsMeta2").textContent = meta;
+  const now = Date.now(), rel = new Set(cal.relevant_currencies || []);
+  const next = (cal.events || []).find(e => e.impact === "high" && rel.has(e.currency) && Date.parse(e.time) > now);
+  $("newsLead").innerHTML = (next ? `Next high-impact event for ${[...rel].join("/")}: <b>${esc(next.currency)} ${esc(next.name)}</b> ${untilText(Date.parse(next.time) - now)}. ` : "") +
+    (cal.applied_to_trading ? "The risk gate blocks new entries around these events."
+      : "The simulated market runs on its own clock, so these real events are shown for reference; on a broker demo or live account they feed the risk gate's news blackout.");
+  $("news").innerHTML = newsTable(cal, false);
+  const firstUpcoming = $("news").querySelector('tr:not([style]) td');
+  if (firstUpcoming) { const box = $("news"); box.scrollTop = Math.max(0, firstUpcoming.parentElement.offsetTop - 40); }
+  if (view === "risk") $("news2").innerHTML = newsTable(cal, true);
+}
+
+/* loops */
+async function tick() {
+  try {
+    const [s, pos] = await Promise.all([get("/api/status"), get("/api/positions")]);
+    S = s; positions = pos; renderStatus(s); renderPositions();
+    await pollFeed();
+    $("dot").className = "dot";
+  } catch (e) { $("dot").className = "dot off"; $("clock").textContent = "connection lost, retrying…"; }
+}
+let busy = false;
+async function refreshView() {
+  if (busy) return; busy = true;
+  try {
+    market = await get("/api/market?points=50");
+    if (view === "overview") { await renderOverview(); await renderNews(); }
+    else if (view === "live") {
+      const [trades, eq] = await Promise.all([get("/api/trades?limit=60"), get("/api/equity")]);
+      await renderCandles(); renderTrades(trades); equityChart(eq);
+    }
+    else if (view === "trades") await renderTradesView();
+    else if (view === "strategies") await renderStrategies();
+    else if (view === "research") await renderResearch();
+    else if (view === "risk") { await renderRisk(); await renderNews(); }
+    else if (view === "execution") await renderExecution();
+    else if (view === "alerts") await renderAlerts();
+    else if (view === "audit") await renderAudit();
+    else if (view === "guide") { limitsCache = limitsCache || await get("/api/limits"); fillGuide(limitsCache); }
+  } catch (e) { console.warn("refresh", e); } finally { busy = false; }
+}
+tick().then(() => { ensureTVQuote(); refreshView(); });
+setInterval(tick, 1000);
+setInterval(() => { if (!["audit", "guide", "research"].includes(view)) refreshView(); }, 3000);
+</script>
+</body>
+</html>

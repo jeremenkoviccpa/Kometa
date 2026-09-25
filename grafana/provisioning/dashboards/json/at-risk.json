@@ -1,0 +1,129 @@
+{
+  "uid": "at-risk",
+  "title": "Risk utilization",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "autotrader"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Open risk as a share of equity",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, account_id AS metric, (open_risk / NULLIF(equity, 0))::float AS value FROM account_snapshots WHERE open_risk IS NOT NULL AND $__timeFilter(at) ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Risk decisions per hour",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT time_bucket('1 hour', at) AS time, payload->'decision'->>'verdict' AS metric, count(*) AS value FROM audit_log WHERE event_type = 'RiskDecided' AND $__timeFilter(at) GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Why the gate rejected or resized",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT reason, count(*) AS n FROM audit_log, jsonb_array_elements_text(payload->'decision'->'reasons') AS reason WHERE event_type = 'RiskDecided' AND $__timeFilter(at) GROUP BY 1 ORDER BY 2 DESC LIMIT 20",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Halts",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, event_type, coalesce(payload->>'state', payload->>'previous') AS state, coalesce(payload->>'reason', payload->>'actor') AS detail FROM audit_log WHERE event_type IN ('HaltEntered', 'HaltCleared') AND $__timeFilter(at) ORDER BY at DESC",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    }
+  ]
+}

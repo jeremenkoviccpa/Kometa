@@ -1,0 +1,76 @@
+[project]
+name = "autotrader"
+version = "0.1.0"
+description = "Autonomous, self-learning, multi-strategy trading system (infrastructure only)."
+requires-python = ">=3.12,<3.13"
+dependencies = ["autotrader-core", "autotrader-strategies-api", "autotrader-data", "autotrader-engine", "autotrader-validation", "autotrader-lifecycle", "autotrader-allocator", "autotrader-risk", "autotrader-execution", "autotrader-mt5-bridge", "autotrader-research", "autotrader-learning", "autotrader-monitor", "autotrader-api", "autotrader-cli"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-xdist>=3.6",
+  "hypothesis>=6.112",
+  "ruff>=0.7",
+  "mypy>=1.13",
+  "types-PyYAML>=6",
+  "fakeredis>=2.23",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+autotrader-core = { workspace = true }
+autotrader-strategies-api = { workspace = true }
+autotrader-data = { workspace = true }
+autotrader-engine = { workspace = true }
+autotrader-validation = { workspace = true }
+autotrader-lifecycle = { workspace = true }
+autotrader-allocator = { workspace = true }
+autotrader-risk = { workspace = true }
+autotrader-execution = { workspace = true }
+autotrader-mt5-bridge = { workspace = true }
+autotrader-research = { workspace = true }
+autotrader-learning = { workspace = true }
+autotrader-monitor = { workspace = true }
+autotrader-api = { workspace = true }
+autotrader-cli = { workspace = true }
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["packages/core/src", "packages/strategies_api/src", "packages/data/src", "packages/engine/src", "packages/validation/src", "packages/lifecycle/src", "packages/allocator/src", "packages/risk/src", "packages/execution/src", "packages/mt5_bridge/src", "packages/research/src", "packages/learning/src", "packages/monitor/src", "packages/api/src", "packages/cli/src", "strategies", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "DTZ", "S", "PT", "PL"]
+ignore = ["PLR0913", "PLR0917", "PLR2004", "PLR0911", "PLR0912", "PLR0915", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "S311", "E741", "PT018"]
+"scripts/dashboards.py" = ["S608"]  # panel SQL is built from constants in the file, never from input
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "packages/core/src:packages/strategies_api/src:packages/data/src:packages/engine/src:packages/validation/src:packages/lifecycle/src:packages/allocator/src:packages/risk/src:packages/execution/src:packages/mt5_bridge/src:packages/research/src:packages/learning/src:packages/monitor/src:packages/api/src:packages/cli/src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["polars.*"]
+follow_untyped_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -m 'not slow' -n auto --dist load"
+asyncio_mode = "auto"
+markers = [
+  "golden: exact-result regression tests",
+  "property: hypothesis property tests",
+  "slow: long running",
+]

@@ -1,0 +1,26 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      # throwaway database for the Postgres tests (audit log trigger, role grants, chain); no password
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: autotrader
+          POSTGRES_DB: autotrader
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U autotrader -d autotrader"
+          --health-interval 5s
+          --health-retries 20
+    env:
+      AT_TEST_DATABASE_URL: postgresql+asyncpg://autotrader@localhost:5432/autotrader
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --python 3.12 --locked
+      - run: make check
+      - run: make mutate

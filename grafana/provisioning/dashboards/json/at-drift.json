@@ -1,0 +1,96 @@
+{
+  "uid": "at-drift",
+  "title": "Live vs backtest drift",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "autotrader"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Mean R per week, money stages",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT time_bucket('7 days', at) AS time, (payload->'trade'->>'strategy_id') || ' ' || (payload->'trade'->>'strategy_version') AS metric, avg((payload->'trade'->>'r_multiple')::float) AS value FROM audit_log WHERE event_type = 'PositionClosed' AND payload->'trade'->>'account_id' <> 'shadow' AND $__timeFilter(at) GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Mean R per week, shadow",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT time_bucket('7 days', at) AS time, (payload->'trade'->>'strategy_id') || ' ' || (payload->'trade'->>'strategy_version') AS metric, avg((payload->'trade'->>'r_multiple')::float) AS value FROM audit_log WHERE event_type = 'PositionClosed' AND payload->'trade'->>'account_id' = 'shadow' AND $__timeFilter(at) GROUP BY 1, 2 ORDER BY 1",
+          "format": "time_series",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Demotions and retirements",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, payload->>'strategy_id' AS strategy, payload->>'strategy_version' AS version, payload->>'from_stage' AS from_stage, payload->>'to_stage' AS to_stage, payload->>'reason' AS reason FROM audit_log WHERE event_type = 'StageChanged' AND payload->>'to_stage' IN ('shadow', 'micro', 'retired') AND payload->>'from_stage' IN ('micro', 'live', 'scaled', 'shadow') AND $__timeFilter(at) ORDER BY at DESC",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    }
+  ]
+}

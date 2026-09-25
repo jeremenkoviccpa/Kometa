@@ -1,0 +1,57 @@
+# Phase 0: storage, bus and dashboards. Application services (engine-live,
+# allocator, risk-gate, execution, research, learning, scheduler, monitor, api,
+# backtest-workers) are added in the phase that builds them (spec section 18).
+name: autotrader
+
+services:
+  postgres:
+    # TimescaleDB HA image ships with pgvector
+    image: timescale/timescaledb-ha:pg16
+    environment:
+      POSTGRES_USER: autotrader
+      POSTGRES_DB: autotrader
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    ports: ["127.0.0.1:${AT_PG_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autotrader -d autotrader"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:${AT_REDIS_PORT:-6379}:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    secrets: [grafana_admin_password, db_readonly_password]
+    ports: ["127.0.0.1:${AT_GRAFANA_PORT:-3000}:3000"]
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      postgres: {condition: service_healthy}
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password.txt
+  db_readonly_password:  # Grafana's read-only role (migration 0006; `make db-roles` sets it)
+    file: ./secrets/db_readonly_password.txt
+
+volumes:
+  pgdata:
+  redisdata:
+  grafanadata:

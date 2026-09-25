@@ -1,0 +1,23 @@
+# CANDIDATE strategy (owner decision 2026-09-25). Not validated; trades money only after validation, shadow
+# and micro say so. Written from general swing-trading practice, not copied from any source.
+id: swing_trend_pullback
+version: 1.0.0
+origin: owner
+family: swing_trend_pullback
+symbols: [XAUUSD]
+timeframes: [H4, D1]
+params:
+  trend_len: {value: 50, min: 20, max: 150, tunable: true}
+  pullback_ema: {value: 20, min: 10, max: 50, tunable: true}
+  pullback_atr: {value: 0.5, min: 0.0, max: 1.5, tunable: true}
+  stop_buffer_atr: {value: 0.3, min: 0.1, max: 1.0, tunable: true}
+  reward_risk: {value: 2.0, min: 1.0, max: 4.0, tunable: true}
+  be_at_r: {value: 1.0, min: 0.5, max: 2.0, tunable: true}
+  atr_len: {value: 14, min: 5, max: 50, tunable: false}
+expected:
+  trades_per_month: 2
+  win_rate: 0.40
+  avg_r: 0.15
+description: >-
+  Swing trading with the daily trend: wait for an H4 pullback to the moving average, enter on a reversal candle
+  in the trend direction, stop beyond the pullback, 2R target, breakeven at +1R, exit if the daily trend turns.

@@ -1,0 +1,96 @@
+{
+  "uid": "at-stages",
+  "title": "Strategy versions by stage",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "autotrader"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "barchart",
+      "title": "Versions per stage",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT stage AS metric, count(*) AS value FROM (SELECT DISTINCT ON (payload->>'strategy_id', payload->>'strategy_version') payload->>'to_stage' AS stage FROM audit_log WHERE event_type = 'StageChanged' ORDER BY payload->>'strategy_id', payload->>'strategy_version', id DESC) s GROUP BY stage ORDER BY stage",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Current stage of every version",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT DISTINCT ON (payload->>'strategy_id', payload->>'strategy_version') payload->>'strategy_id' AS strategy, payload->>'strategy_version' AS version, payload->>'to_stage' AS stage, at AS since, payload->>'reason' AS reason FROM audit_log WHERE event_type = 'StageChanged' ORDER BY payload->>'strategy_id', payload->>'strategy_version', id DESC",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Stage changes",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT at AS time, payload->>'strategy_id' AS strategy, payload->>'strategy_version' AS version, payload->>'from_stage' AS from_stage, payload->>'to_stage' AS to_stage, payload->>'reason' AS reason FROM audit_log WHERE event_type = 'StageChanged' AND $__timeFilter(at) ORDER BY at DESC LIMIT 500",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    }
+  ]
+}

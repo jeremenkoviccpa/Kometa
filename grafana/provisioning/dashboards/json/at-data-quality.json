@@ -1,0 +1,96 @@
+{
+  "uid": "at-data-quality",
+  "title": "Data quality",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "tags": [
+    "autotrader"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "barchart",
+      "title": "Issues per day by type",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT time_bucket('1 day', start_time) AS time, issue_type AS metric, count(*) AS value FROM data_quality_issues WHERE $__timeFilter(start_time) GROUP BY 1, 2 ORDER BY 1",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Issues by symbol and severity",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT symbol, severity, count(*) AS n FROM data_quality_issues WHERE $__timeFilter(start_time) GROUP BY 1, 2 ORDER BY 1, 2",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "High-severity windows (excluded from validation)",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT start_time AS time, end_time, symbol, issue_type, detail FROM data_quality_issues WHERE severity = 'high' AND $__timeFilter(start_time) ORDER BY start_time DESC LIMIT 200",
+          "format": "table",
+          "rawQuery": true,
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          }
+        }
+      ]
+    }
+  ]
+}

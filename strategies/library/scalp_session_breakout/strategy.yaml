@@ -1,0 +1,22 @@
+# CANDIDATE strategy (owner decision 2026-09-25). Not validated; trades money only after validation, shadow
+# and micro say so. The classic Asian-range / London-open breakout, written from general knowledge.
+id: scalp_session_breakout
+version: 1.0.0
+origin: owner
+family: session_breakout
+symbols: [XAUUSD]
+timeframes: [M5, H1]
+params:
+  range_end_h: {value: 7, min: 5, max: 8, tunable: true}
+  buffer: {value: 0.05, min: 0.0, max: 0.3, tunable: true}
+  reward_risk: {value: 1.2, min: 0.8, max: 2.5, tunable: true}
+  max_width_atr: {value: 5.0, min: 2.0, max: 10.0, tunable: true}
+  max_spread_r: {value: 0.1, min: 0.03, max: 0.25, tunable: true}
+  exit_h: {value: 16, min: 12, max: 20, tunable: false}
+expected:
+  trades_per_month: 12
+  win_rate: 0.50
+  avg_r: 0.05
+description: >-
+  Intraday scalp: trade the break of the 00:00-07:00 UTC range in the first hours of London, stop at the range
+  middle, about 1.2R target, one trade a day, flat by 16:00 UTC, skipped when the spread eats too much of the risk.

@@ -1,0 +1,24 @@
+# PAPER TRADING ONLY (demo account). Same limits as risk.yaml plus the demo_only stage at minimum size.
+# Must be owner-signed like risk.yaml: `at risk sign config/risk.paper.yaml`. Never use it for a real account;
+# execution refuses real accounts outside env=live anyway.
+# Risk limits (spec section 11). Must be signed by the owner: `at risk sign config/risk.yaml`.
+# The risk gate refuses to start if risk.yaml.sig is missing or invalid.
+account_currency: EUR
+risk_per_trade_default: 0.005
+risk_per_trade_max: 0.01
+open_risk_per_strategy_max: 0.015
+open_risk_total_max: 0.03
+same_currency_same_direction_max_positions: 2
+leverage_notional_max: 10.0
+per_symbol_max_lots: {XAUUSD: 2.0, default: 5.0}
+daily_loss_halt: 0.02
+weekly_loss_halt: 0.05
+peak_drawdown_full_halt: 0.15
+news_blackout_minutes: 15
+no_new_entries_after: "FRI 18:00 Europe/Belgrade"
+min_free_margin_ratio: 3.0
+require_stop: true
+decision_ttl_seconds: 5
+min_stop_spreads: 1.5
+# per-stage caps on risk per trade; mirrors promotion.yaml but owned (and signed) here
+stage_risk_limits: {micro: 0.001, live: 0.005, scaled: 0.01, demo_only: 0.001}

@@ -1,0 +1,17 @@
+# Research and learning budgets (spec sections 14.3, 14.10)
+learning:
+  freeze: false
+  drawdown_pause: 0.08
+  drawdown_resume: 0.04
+budgets:
+  max_variants_per_week: 200
+  max_new_families_per_week: 3
+  max_api_spend_per_week_usd: 0     # SPEC-QUESTION: owner decision (section 23); 0 = research disabled
+meta_learning:
+  exploration_floor: 0.20
+  negative_scorecard_months_to_cut: 3
+models:
+  hypothesis: ""                    # model names come from config, never hardcoded
+  coder: ""
+  critic: ""
+  diagnostician: ""

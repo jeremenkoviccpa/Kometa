@@ -1,0 +1,16 @@
+[project]
+name = "autotrader-strategies-api"
+version = "0.1.0"
+description = "Strategy base class, manifest schema, sandbox loader."
+requires-python = ">=3.12,<3.13"
+dependencies = ["pyyaml>=6", "autotrader-core"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autotrader"]
+
+[tool.uv.sources]
+autotrader-core = { workspace = true }

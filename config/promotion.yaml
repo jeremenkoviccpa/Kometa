@@ -1,0 +1,16 @@
+# Promotion ladder (spec section 10). Fence: learning and research can never edit this file.
+shadow: {risk_per_trade: 0.0, exit: {min_weeks: 4, min_signals: 30, band: 0.90}}
+micro: {risk_per_trade: 0.001, exit: {min_trades: 60, max_slippage_vs_model: 1.5, band: 0.90}}
+live: {risk_per_trade: 0.005, exit: {min_trades: 150, min_rolling_sharpe: 1.0}}
+scaled: {risk_per_trade_max: 0.01}
+demotion:
+  dd_vs_mc_p95: 1.5
+  rolling_pf_window: 50
+  rolling_pf_min: 1.0
+  slippage_vs_model_max: 2.0
+  slippage_window: 20
+  drift_window: 50
+  drift_interval: 0.95
+  retire_after_demotions: 2
+  retire_window_months: 6
+global: {max_promotions_to_live_per_week: 2}
