@@ -14,3 +14,5 @@ secrets/
 *.key
 !*.pub
 /var/
+web/index.html
+web/.vercel

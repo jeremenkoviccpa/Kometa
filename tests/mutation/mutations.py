@@ -378,4 +378,11 @@ MUTATIONS: tuple[Mutation, ...] = (
         "        if False:",
         (OANDA_T,),
     ),
+    Mutation(
+        "api: a public hub serves data without the token",
+        API,
+        "    if protect_reads:\n",
+        "    if False:\n",
+        (API_T,),
+    ),
 )

@@ -15,8 +15,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from autotrader.core.bus import CONTROL, Bus
@@ -98,11 +98,29 @@ def create_app(
     research_dir: Path | None = None,
     catalog: Callable[[], list[dict[str, Any]]] | None = None,
     paper_trade: Callable[[str, str, bool], Awaitable[str]] | None = None,
+    protect_reads: bool = False,
 ) -> FastAPI:
+    """`protect_reads`: every /api and /research request needs the owner token (public hosting); the page
+    itself stays public, it holds no data."""
     if owner_token is not None and len(owner_token) < MIN_TOKEN:
         raise ValueError(f"owner token must be at least {MIN_TOKEN} characters")
     expected = f"Bearer {owner_token}".encode() if owner_token else None
     app = FastAPI(title="autotrader", docs_url=None, redoc_url=None)
+    if protect_reads:
+        if expected is None:
+            raise ValueError("a public hub needs an owner token")
+
+        @app.middleware("http")
+        async def require_token(
+            request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        ) -> Response:
+            path = request.url.path
+            if path.startswith(("/api/", "/research/")):
+                got = request.headers.get("authorization", "")
+                if not hmac.compare_digest(got.encode(), expected):
+                    return JSONResponse({"detail": "access token required"}, status_code=401)
+            return await call_next(request)
+
     st = monitor.state
     router = monitor.router
 

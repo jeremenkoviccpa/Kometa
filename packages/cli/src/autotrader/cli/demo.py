@@ -103,6 +103,7 @@ class DemoConfig:
     start_price: float | None = None  # sim: first price; default from MARKETS
     leverage: int = 100  # sim broker margin: notional / leverage per lot
     calendar: bool = True  # fetch ForexFactory's weekly calendar (run_demo only; build never fetches)
+    host: str = "127.0.0.1"  # anything else is public hosting: the whole API then needs the owner token
     history_days: int = 260  # sim: bars played before the start only to warm strategies up (D1 needs ~160)
     trade: tuple[str, ...] | None = None  # strategies paper trading at start; None = the whole library
 
@@ -212,7 +213,7 @@ class DemoStack:
             "events": cal.rows,
         }
 
-    def app(self, owner_token: str | None) -> Any:
+    def app(self, owner_token: str | None, *, protect_reads: bool = False) -> Any:
         return create_app(
             self.monitor,
             audit=self.audit,
@@ -230,6 +231,7 @@ class DemoStack:
             research_dir=Settings().reports_dir,
             catalog=self.catalog,
             paper_trade=self.paper_trade,
+            protect_reads=protect_reads,
         )
 
     def _allocation(self) -> dict[str, Any]:
@@ -678,12 +680,23 @@ async def run_demo(cfg: DemoConfig, owner_token: str | None = None) -> DemoStack
     if cfg.serve:
         import uvicorn  # noqa: PLC0415
 
-        token = owner_token or secrets.token_urlsafe(32)
+        public = cfg.host not in ("127.0.0.1", "localhost", "::1")
+        configured = Settings().api_owner_token
+        token = owner_token or (configured.get_secret_value() if configured else None)
+        if public and (token is None or len(token) < 32):
+            raise SystemExit("a public hub needs AT_API_OWNER_TOKEN (32+ characters); it is never generated")
+        shown = token is None  # a generated token is printed for the local console only
+        token = token or secrets.token_urlsafe(32)
         server = uvicorn.Server(
-            uvicorn.Config(stack.app(token), host="127.0.0.1", port=cfg.port, log_level="warning")
+            uvicorn.Config(
+                stack.app(token, protect_reads=public), host=cfg.host, port=cfg.port, log_level="warning"
+            )
         )
         asyncio.create_task(server.serve())  # noqa: RUF006
-        say(f"dashboard: http://127.0.0.1:{cfg.port}/   owner token for control endpoints: {token}")
+        if shown:
+            say(f"dashboard: http://{cfg.host}:{cfg.port}/   owner token for control endpoints: {token}")
+        else:
+            say(f"dashboard on {cfg.host}:{cfg.port} (access token from AT_API_OWNER_TOKEN)")
     stack.router.send(
         Alert(severity=Severity.INFO, kind="demo_started", message=stack.info["mode"], at=stack.clock.now())
     )

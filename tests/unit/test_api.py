@@ -38,7 +38,7 @@ AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 
 class Env:
-    def __init__(self, tmp: Path, token: str | None = TOKEN) -> None:
+    def __init__(self, tmp: Path, token: str | None = TOKEN, protect_reads: bool = False) -> None:
         self.clock = SimClock(T0)
         self.bus = InMemoryBus()
         self.audit = AuditLog(JsonlLedger(tmp / "audit.jsonl"))
@@ -70,6 +70,7 @@ class Env:
             quote_ccy={"XAUUSD": "USD"},
             info={"mode": "TEST"},
             research_dir=tmp / "reports",
+            protect_reads=protect_reads,
         )
         self.client = TestClient(self.app)
 
@@ -223,3 +224,16 @@ def test_patterns_marks_a_bullish_engulfing_on_its_completing_candle(env: Env) -
     assert first["names"] == ["inverted_hammer"]  # minute 1 alone: long upper wick, small body at the bottom
     assert "bullish_engulfing" in hit["names"] and hit["bias"] == "bull"
     assert hit["t"] == int((T0 + timedelta(minutes=1)).timestamp())
+
+
+def test_a_public_hub_serves_no_data_without_the_token(tmp_path: Path) -> None:
+    e = Env(tmp_path, protect_reads=True)
+    c = e.client
+    assert "Kometa Trading Hub" in c.get("/").text  # the page itself holds no data
+    for path in ("/api/status", "/api/trades", "/api/audit", "/api/journeys", "/research/x.html"):
+        assert c.get(path).status_code == 401, path
+        assert c.get(path, headers={"Authorization": "Bearer wrong"}).status_code == 401, path
+    assert c.get("/api/status", headers=AUTH).status_code == 200  # control: the owner reads everything
+    assert c.post("/api/control/pause-learning", json={"paused": True}).status_code == 401
+    with pytest.raises(ValueError, match="owner token"):
+        Env(tmp_path / "x", token=None, protect_reads=True)

@@ -348,7 +348,16 @@ def _demo_run(args: argparse.Namespace) -> int:
         symbol=args.symbol,
         start_price=args.start_price,
         trade=tuple(args.trade) if args.trade is not None else None,
+        host=args.host,
+        run_days=args.run_days,
     )
+    if args.fresh:
+        if args.broker != "sim":
+            print("--fresh only applies to the simulated market (broker state must never be wiped)")
+            return 1
+        import shutil  # noqa: PLC0415
+
+        shutil.rmtree(cfg.var, ignore_errors=True)
     try:
         asyncio.run(run_demo(cfg))
     except KeyboardInterrupt:
@@ -534,6 +543,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="starting balance (sim); gold at minimum size needs about 25k at the 0.1%% paper-stage risk",
     )
     dr.add_argument("--port", type=int, default=8000)
+    dr.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="0.0.0.0 for a server: then every API call needs AT_API_OWNER_TOKEN",
+    )
+    dr.add_argument("--run-days", type=float, default=60.0, help="simulated market days after the catch-up")
+    dr.add_argument("--fresh", action="store_true", help="sim only: start from an empty state directory")
     dr.add_argument("--symbol", default="XAUUSD", help="market to trade (sim: synthetic prices, real spec)")
     dr.add_argument(
         "--trade", nargs="*", default=None, help="strategy ids paper trading at start (default: the library)"

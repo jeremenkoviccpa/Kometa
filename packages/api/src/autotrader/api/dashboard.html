@@ -472,7 +472,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
 
 <dialog id="ownerDlg">
   <h3 style="margin:0 0 4px">Owner controls</h3>
-  <div class="muted" style="font-size:12.5px">Paste the owner token (the demo prints it at start; see var/hub.log). It stays in this browser tab only, and every command is written to the audit log. Nothing here can change risk limits.</div>
+  <div class="muted" style="font-size:12.5px">Paste the access token: on a server it is the AT_API_OWNER_TOKEN you set there; locally the demo prints it at start (see var/hub.log). It stays in this browser tab only, and every command is written to the audit log. Nothing here can change risk limits.</div>
   <input id="ownerTok" type="password" placeholder="owner token" autocomplete="off">
   <div class="row"><button class="act" id="ownerClear">Forget</button><button class="act" id="ownerSave">Use token</button></div>
 </dialog>
@@ -501,7 +501,16 @@ const LADDER = ["candidate", "shadow", "micro", "live", "scaled"];
 const TFS = ["M1", "M5", "M15", "H1", "H4", "D1"];
 let tf = "M15"; try { tf = localStorage.getItem("kometa.tf") || "M15"; } catch (e) {}
 
-async function get(path) { const r = await fetch(path, {cache: "no-store"}); if (!r.ok) throw new Error(path); return r.json(); }
+let askedForToken = false;
+async function get(path) {
+  const r = await fetch(path, {cache: "no-store", headers: token ? {"Authorization": "Bearer " + token} : {}});
+  if (r.status === 401) {  // a hosted hub: every read needs the access token
+    if (!askedForToken) { askedForToken = true; $("ownerTok").value = token || ""; $("ownerDlg").showModal(); }
+    throw new Error("access token required");
+  }
+  if (!r.ok) throw new Error(path);
+  return r.json();
+}
 async function post(path, body) {
   if (!token) { $("ownerDlg").showModal(); throw new Error("owner token needed"); }
   const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json", "Authorization": "Bearer " + token}, body: JSON.stringify(body || {})});
@@ -538,7 +547,7 @@ function goto(v) {
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) goto(b.dataset.v); });
 document.addEventListener("click", (e) => { const g = e.target.closest("[data-goto]"); if (g) goto(g.dataset.goto); });
 $("ownerBtn").onclick = () => { $("ownerTok").value = token || ""; $("ownerDlg").showModal(); };
-$("ownerSave").onclick = () => { token = $("ownerTok").value.trim() || null; try { token ? sessionStorage.setItem("kometa.owner", token) : sessionStorage.removeItem("kometa.owner"); } catch (e) {} $("ownerDlg").close(); ownerLabel(); refreshView(); };
+$("ownerSave").onclick = () => { askedForToken = false; token = $("ownerTok").value.trim() || null; try { token ? sessionStorage.setItem("kometa.owner", token) : sessionStorage.removeItem("kometa.owner"); } catch (e) {} $("ownerDlg").close(); ownerLabel(); refreshView(); };
 $("ownerClear").onclick = () => { token = null; try { sessionStorage.removeItem("kometa.owner"); } catch (e) {} $("ownerDlg").close(); ownerLabel(); refreshView(); };
 function ownerLabel() { $("ownerBtn").textContent = token ? "🔓 Owner" : "🔑 Owner"; }
 ownerLabel();
@@ -1046,13 +1055,18 @@ function renderReport() {
     ["Trades", w => w.test_trades, "n"], ["Profit factor", w => `<span class="${w.test_pf >= 1 ? "up" : "down"}">${typeof w.test_pf === "number" ? num(w.test_pf) : esc(w.test_pf)}</span>`, "n"],
     ["Sharpe", w => typeof w.test_sharpe === "number" ? num(w.test_sharpe) : esc(w.test_sharpe), "n"]], r.windows, "no walk-forward windows (not enough data)");
   box.innerHTML = `<h2>${esc(r.strategy_id)} ${esc(r.version)} · ${r.passed ? '<span class="up">passed</span>' : '<span class="down">failed</span>'}
-      <span class="right">${r.html ? `<a href="/research/${encodeURIComponent(r.name)}.html" target="_blank" rel="noopener">full report ↗</a>` : ""}</span></h2>
+      <span class="right">${r.html ? `<button class="act" data-report-html="${esc(r.name)}">full report ↗</button>` : ""}</span></h2>
     ${r.synthetic ? '<div class="caveat">Validated on synthetic prices: plumbing only, never eligible for promotion.</div>' : ""}
     <div class="grid2" style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:10px">
       <div><h2>Gates</h2><table><tbody>${checks}</tbody></table>${r.warnings.length ? `<div class="note">${r.warnings.map(esc).join("<br>")}</div>` : ""}</div>
       <div><h2>Unseen-months result (cumulative R)</h2><div class="chart sm" id="rCum"></div><div class="note">Final parameters: <span class="mono">${esc(JSON.stringify(r.final_params))}</span></div></div>
     </div>
     <h2 style="margin-top:14px">What it learned, window by window</h2><div class="scroll">${learned}</div>`;
+  box.querySelectorAll("[data-report-html]").forEach(b => b.onclick = async () => {
+    const resp = await fetch(`/research/${encodeURIComponent(b.dataset.reportHtml)}.html`, {headers: token ? {"Authorization": "Bearer " + token} : {}});
+    if (!resp.ok) { toast("report not available"); return; }
+    window.open(URL.createObjectURL(new Blob([await resp.text()], {type: "text/html"})), "_blank", "noopener");
+  });
   let eq = 0; delete charts.rCum; lineChart("rCum", (r.oos_r || []).filter(x => x != null).map(x => (eq += x)));
 }
 
