@@ -38,3 +38,14 @@ Open the Vercel URL, paste the access token when asked (it stays in that browser
   on `0.0.0.0` without `AT_API_OWNER_TOKEN`. Controls (retire, pause learning, paper trading switch) are
   audited. No endpoint changes risk limits.
 - Never set `AT_ENV=live` on a hosted demo.
+
+## Current deployment (2026-09-25)
+
+- Backend: Railway project `kometa`, service `kometa`, volume `kometa-volume` at `/data`,
+  https://kometa-production-11af.up.railway.app (simulated gold, `AT_DEMO_BROKER=sim`, `AT_DEMO_SPEED=60`).
+  Deployed with `railway up` from a local checkout; to redeploy on every push, connect the GitHub repository in
+  the Railway dashboard (service, Settings, Source).
+- Frontend: Vercel project `kometa`, https://kometa-roan.vercel.app, deployed from `web/` (`scripts/build_web.py`
+  then `vercel deploy --prod` inside `web/`).
+- Access token: set on Railway as `AT_API_OWNER_TOKEN`; the owner's copy is in `secrets/hub_token.txt`
+  (git-ignored, never committed).
