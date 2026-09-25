@@ -221,4 +221,12 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   tuning comes from the same API (`at data fetch --source oanda`, cached per month).
 - Hosting: Vercel is unsuitable (short-lived functions; Kometa is a set of long-running services). Paper trading
   runs on the owner's Mac or Windows machine (WSL2); live money moves to a small Linux VPS (Phase 11).
+- OANDA's API is not available through OANDA Global Markets or OANDA TMS, the entities that serve Serbia and the
+  EU, so the owner's demo broker is IC Markets on cTrader. `CTraderAdapter` speaks the cTrader Open API (JSON over
+  WebSocket, payload types from spotware/openapi-proto-messages): application then account authentication,
+  a heartbeat every 10 s, replies matched by clientMsgId. Volumes in hundredths of a unit (lots x lotSize), spot
+  prices in 1/100,000, our client order id in the order comment (it carries over to the position), market orders
+  with a relative stop that the order manager then confirms at the exact level. Credential errors are
+  PermissionError and are never turned into "broker unavailable" (PermissionError is an OSError; a test caught
+  the adapter doing exactly that). History from cTrader is bid-only, so tuning keeps using Dukascopy.
 

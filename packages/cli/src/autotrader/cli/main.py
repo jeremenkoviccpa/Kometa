@@ -411,6 +411,32 @@ async def _fetch_oanda(args: argparse.Namespace, start: date_t, end: date_t) -> 
     return 0 if n else 1
 
 
+def _ctrader_accounts(args: argparse.Namespace) -> int:
+    from autotrader.execution.ctrader import list_accounts  # noqa: PLC0415
+
+    s = Settings()
+    if not (s.ctrader_client_id and s.ctrader_client_secret and s.ctrader_access_token):
+        print("put AT_CTRADER_CLIENT_ID, AT_CTRADER_CLIENT_SECRET and AT_CTRADER_ACCESS_TOKEN in .env first")
+        return 1
+    accounts = asyncio.run(
+        list_accounts(
+            s.ctrader_client_id,
+            s.ctrader_client_secret.get_secret_value(),
+            s.ctrader_access_token.get_secret_value(),
+            environment=s.ctrader_environment,
+        )
+    )
+    for acc in accounts:
+        kind = "LIVE" if acc.get("isLive") else "demo"
+        print(
+            f"{acc['ctidTraderAccountId']}  login {acc.get('traderLogin')}  {kind}  "
+            f"{acc.get('brokerTitleShort', '')}"
+        )
+    if not accounts:
+        print("no accounts for this token (demo tokens see demo accounts only)")
+    return 0
+
+
 def _add_data_args(p: argparse.ArgumentParser) -> None:
     p.add_argument(
         "--data", default=None, help="directory with <SYMBOL>_M1.{csv,parquet}; synthetic if omitted"
@@ -522,15 +548,22 @@ def build_parser() -> argparse.ArgumentParser:
     src.add_argument("--db", action="store_true", help="the audit_log table in AT_DATABASE_URL")
     av.set_defaults(func=_audit_verify)
 
+    ctr = sub.add_parser("ctrader", help="cTrader Open API tools").add_subparsers(
+        dest="ctrader_cmd", required=True
+    )
+    ctr.add_parser("accounts", help="list the accounts your AT_CTRADER_ACCESS_TOKEN can trade").set_defaults(
+        func=_ctrader_accounts
+    )
+
     dm = sub.add_parser("demo", help="run the whole system with the dashboard").add_subparsers(
         dest="demo_cmd", required=True
     )
     dr = dm.add_parser("run", help="simulated market (default) or a broker demo account via the MT5 bridge")
     dr.add_argument(
         "--broker",
-        choices=["sim", "oanda", "mt5"],
+        choices=["sim", "ctrader", "oanda", "mt5"],
         default="sim",
-        help="sim: simulated market; oanda: OANDA practice account; mt5: MT5 demo via the bridge",
+        help="sim: simulated market; ctrader: cTrader demo (e.g. IC Markets); oanda; mt5: via the bridge",
     )
     dr.add_argument("--speed", type=float, default=3600.0, help="simulated seconds per real second (sim)")
     dr.add_argument(

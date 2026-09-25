@@ -40,6 +40,8 @@ MON_STATE = "packages/monitor/src/autotrader/monitor/state.py"
 RISK_SVC_T = "tests/unit/test_bus.py"
 OANDA = "packages/execution/src/autotrader/execution/oanda.py"
 OANDA_T = "tests/unit/test_oanda.py"
+CTRADER = "packages/execution/src/autotrader/execution/ctrader.py"
+CTRADER_T = "tests/unit/test_ctrader.py"
 QUALITY = "packages/data/src/autotrader/data/quality.py"
 DATA_T = "tests/unit/test_data.py"
 
@@ -384,5 +386,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         "    if protect_reads:\n",
         "    if False:\n",
         (API_T,),
+    ),
+    Mutation(
+        "ctrader: a rejected token is retried as an outage",
+        CTRADER,
+        "        except (PermissionError, BrokerUnavailableError):\n",
+        "        except BrokerUnavailableError:\n",
+        (CTRADER_T,),
+    ),
+    Mutation(
+        "ctrader: a netting account passes as hedging",
+        CTRADER,
+        'margin_mode="hedging" if _enum(tr.get("accountType", HEDGED)) == HEDGED else "netting",',
+        'margin_mode="hedging",',
+        (CTRADER_T,),
     ),
 )

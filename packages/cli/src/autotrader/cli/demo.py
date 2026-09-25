@@ -59,6 +59,7 @@ from autotrader.engine.service import EngineLiveService
 from autotrader.execution.adapter import BrokerAdapter
 from autotrader.execution.bus_service import ExecutionBusService
 from autotrader.execution.config import load_execution_config
+from autotrader.execution.ctrader import CTraderAdapter
 from autotrader.execution.fake import FakeBroker
 from autotrader.execution.journal import Journal
 from autotrader.execution.mt5 import MT5Adapter
@@ -407,6 +408,29 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
             raise SystemExit("AT_BRIDGE_URL and AT_BRIDGE_TOKEN must be set")
         clock = LiveClock()
         adapter = MT5Adapter(settings.bridge_url, settings.bridge_token.get_secret_value())
+        frame = None
+        history = await broker_history(adapter, clock, strategies, instruments, cfg)
+    elif cfg.broker == "ctrader":
+        if settings.env != "paper" or settings.ctrader_environment != "demo":
+            raise SystemExit("the cTrader demo needs AT_ENV=paper and AT_CTRADER_ENVIRONMENT=demo")
+        c = settings
+        if not (
+            c.ctrader_client_id
+            and c.ctrader_client_secret
+            and c.ctrader_access_token
+            and c.ctrader_account_id
+        ):
+            raise SystemExit("put the AT_CTRADER_* values in .env (see config/settings.example.env)")
+        clock = LiveClock()
+        adapter = CTraderAdapter(
+            c.ctrader_client_id,
+            c.ctrader_client_secret.get_secret_value(),
+            c.ctrader_access_token.get_secret_value(),
+            c.ctrader_account_id,
+            symbols,
+            environment="demo",
+        )
+        await adapter.connect()
         frame = None
         history = await broker_history(adapter, clock, strategies, instruments, cfg)
     elif cfg.broker == "oanda":

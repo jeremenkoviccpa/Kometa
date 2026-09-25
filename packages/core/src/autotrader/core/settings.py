@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     oanda_token: SecretStr | None = None  # OANDA v20 API token (practice or live), from .env only
     oanda_account: str | None = None  # e.g. 101-004-1234567-001
     oanda_environment: Literal["practice", "live"] = "practice"
+    ctrader_client_id: str | None = None  # cTrader Open API application (openapi.ctrader.com)
+    ctrader_client_secret: SecretStr | None = None
+    ctrader_access_token: SecretStr | None = None  # from the application's Playground, ~30 days
+    ctrader_account_id: int | None = None  # ctidTraderAccountId (`at ctrader accounts` lists them)
+    ctrader_environment: Literal["demo", "live"] = "demo"
 
     owner_public_key_path: Path = Path("config/owner_ed25519.pub")
     risk_decision_key_path: Path | None = None  # risk-gate container only
