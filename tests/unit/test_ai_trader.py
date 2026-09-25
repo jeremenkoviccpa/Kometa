@@ -144,8 +144,7 @@ def candidate(side: str = "buy") -> Signal:
 
 
 async def settle(s: AiTraderService) -> None:
-    while s.tasks:
-        await asyncio.gather(*list(s.tasks))
+    await s.settle()
 
 
 async def signals(bus: InMemoryBus) -> list[Signal]:
@@ -272,3 +271,19 @@ def test_the_hub_view_says_what_is_on_and_why_claude_is_idle() -> None:
     v = s.view()
     assert v["tracks"] == {JUDGE_ID: True, FREE_ID: False}
     assert not v["enabled"] and "API key" in v["disabled_reason"]
+
+
+async def test_settle_waits_for_claude_so_a_held_clock_sees_the_answer() -> None:
+    gate = asyncio.Event()
+
+    class Slow(FakeClaude):
+        async def __call__(self, system: str, context: str) -> dict[str, Any]:
+            await gate.wait()
+            return await super().__call__(system, context)
+
+    s, bus, _ = service(Slow(take()))
+    s.ask(FREE_ID, "XAUUSD", None)
+    assert await signals(bus) == [] and s.busy  # still thinking
+    asyncio.get_running_loop().call_later(0.01, gate.set)
+    await s.settle()
+    assert len(await signals(bus)) == 1 and not s.busy

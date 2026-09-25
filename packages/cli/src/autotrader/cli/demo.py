@@ -697,6 +697,10 @@ async def play_sim(s: DemoStack, *, until: datetime | None = None, realtime: boo
             await s.execution.on_quote(q)
         clock.advance_to(t_end)
         await sched.minute()
+        if realtime and s.ai is not None:
+            # the simulated market waits while Claude thinks: on a real clock only seconds would pass, but at
+            # 300x a 10 s answer would be 50 market minutes late and refused as stale
+            await s.ai.settle()
         n += 1
         # always yield, so the dashboard stays responsive while history plays at full speed
         await asyncio.sleep(60.0 / s.cfg.speed if realtime else 0)

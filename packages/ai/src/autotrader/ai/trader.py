@@ -176,6 +176,11 @@ class AiTraderService:
 
     # ------------------------------------------------------------ asking Claude
 
+    async def settle(self) -> None:
+        """Wait for every question in flight (the simulated demo holds its clock meanwhile)."""
+        while self.tasks:
+            await asyncio.gather(*list(self.tasks), return_exceptions=True)
+
     def blocked(self, track: str, symbol: str) -> str | None:
         """Why this track may not ask Claude now, or None."""
         if not self.trading(track):
