@@ -293,3 +293,7 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   similarity waits for the Postgres store; meanwhile `top(family)` returns the newest (open question 35).
 - The hub's Learning tab shows each strategy's diagnosis live (evidence exists before any demotion) and the
   lessons list.
+- Found live on the first deploy: the owner's paper switch-off ("owner: back to shadow") was written up as a
+  demotion lesson, because the filter and its test both used a reason string typed by hand. The registry now
+  exports PAPER_ON / PAPER_OFF, the lesson writer imports them, and the test drives the real Registry. Same
+  root cause as the Phase 8 lesson (test against what the real writer produces); noted for the Phase 9 retro.

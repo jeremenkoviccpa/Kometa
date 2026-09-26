@@ -11,7 +11,10 @@ from typing import Any
 
 import pytest
 
+from autotrader.core.alerts import MemoryAlertSink
+from autotrader.core.clock import SimClock
 from autotrader.core.events import StageChanged
+from autotrader.core.ledger import JsonlLedger
 from autotrader.core.models import Stage, Timeframe
 from autotrader.learning.features import FeatureSnapshot
 from autotrader.learning.journal import JournalEntry, Outcome
@@ -22,6 +25,7 @@ from autotrader.learning.lessons import (
     lesson_from_stage,
     lesson_from_validation,
 )
+from autotrader.lifecycle.registry import Registry, VersionInfo
 
 T0 = datetime(2026, 9, 21, 10, 0, tzinfo=UTC)
 
@@ -131,10 +135,26 @@ def test_a_lesson_on_every_demotion_and_retirement_and_none_on_promotion(
         assert '"trend_len": 50' in x.what_tried and x.evidence["journal_signals"] == 50
 
 
-def test_the_owner_switching_paper_trading_off_is_not_a_failure() -> None:
-    off = stage(Stage.DEMO_ONLY, Stage.SHADOW, "owner: paper trading stopped")
-    assert lesson_from_stage(off, "f", []) is None
-    assert lesson_from_stage(stage(Stage.DEMO_ONLY, Stage.SHADOW), "f", []) is not None  # control
+def test_the_owner_switching_paper_trading_off_is_not_a_failure(tmp_path: Path) -> None:
+    # the events come from the real registry, so the test cannot drift from the wording it writes
+    reg = Registry(JsonlLedger(tmp_path / "registry.jsonl"), SimClock(T0), MemoryAlertSink())
+    reg.submit_candidate(
+        VersionInfo(
+            strategy_id="swing",
+            version="1.0.0",
+            family="f",
+            origin="owner",
+            demo_only=True,
+            code_hash="c",
+            created_by="t",
+        )
+    )
+    reg.promote_candidate("swing", "1.0.0", validation_passed=False, synthetic=True)
+    on = reg.paper_trade("swing", "1.0.0", on=True)
+    off = reg.paper_trade("swing", "1.0.0", on=False)
+    assert lesson_from_stage(on, "f", []) is None and lesson_from_stage(off, "f", []) is None
+    system = off.model_copy(update={"reason": "evaluator: drawdown 16.0% > 15%"})
+    assert lesson_from_stage(system, "f", []) is not None  # control: the same move made by the system
 
 
 def report(passed: bool) -> dict[str, Any]:

@@ -22,6 +22,7 @@ from autotrader.core.bus import STAGES, Handler
 from autotrader.core.events import StageChanged
 from autotrader.core.models import Stage
 from autotrader.learning.journal import JournalEntry
+from autotrader.lifecycle.registry import PAPER_OFF, PAPER_ON
 
 LESSON_NS = uuid.UUID("6f1d2c1e-4c7b-5e0a-9a51-4c2f5d7a8b10")
 LADDER = {
@@ -172,7 +173,7 @@ def lesson_from_stage(
 ) -> Lesson | None:
     """A lesson when a version is demoted or retired by the system. The owner switching paper trading off
     is a choice, not a failure: no lesson."""
-    if ev.reason.startswith("owner: paper trading"):
+    if ev.reason in (PAPER_ON, PAPER_OFF):
         return None
     if ev.to_stage == Stage.RETIRED:
         event: LessonEvent = "retirement"

@@ -433,4 +433,11 @@ MUTATIONS: tuple[Mutation, ...] = (
         "    elif LADDER.get(ev.to_stage, 0) != LADDER.get(ev.from_stage, 0):\n",
         (LESSONS_T,),
     ),
+    Mutation(
+        "lessons: the owner's paper switch recorded as a failure",
+        LESSONS,
+        "    if ev.reason in (PAPER_ON, PAPER_OFF):\n",
+        "    if False:\n",
+        (LESSONS_T,),
+    ),
 )

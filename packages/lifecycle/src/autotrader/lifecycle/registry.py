@@ -36,6 +36,8 @@ from autotrader.core.profile import BacktestProfile
 
 Origin = Literal["trader", "research_agent", "owner", "learning_reopt"]  # same as the strategy manifest
 Actor = Literal["evaluator", "validation", "owner", "learning"]
+# the owner's paper-trading switch (read by learning: switching off is a choice, not a failure)
+PAPER_ON, PAPER_OFF = "owner: paper trading", "owner: back to shadow"
 
 ALLOWED: frozenset[tuple[Stage, Stage]] = frozenset(
     {
@@ -300,6 +302,4 @@ class Registry:
     def paper_trade(self, strategy_id: str, version: str, on: bool = True) -> StageChanged:
         """Owner command: a demo_only version trades at minimum size where risk config allows (paper)."""
         to = Stage.DEMO_ONLY if on else Stage.SHADOW
-        return self.transition(
-            strategy_id, version, to, "owner: paper trading" if on else "owner: back to shadow", actor="owner"
-        )
+        return self.transition(strategy_id, version, to, PAPER_ON if on else PAPER_OFF, actor="owner")
