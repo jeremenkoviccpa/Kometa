@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     ledger_path: Path = Path("var/ledger.jsonl")  # dev/CI trial registry; Postgres in production
     registry_path: Path = Path("var/registry.jsonl")  # strategy versions and stage history
     reports_dir: Path = Path("reports")
+    lessons_path: Path = Path("var/lessons.jsonl")  # L6 failure lessons (learning)
     execution_journal_path: Path = Path("var/execution_journal.json")
     execution_quality_path: Path = Path("var/execution_quality.jsonl")  # until Postgres runs
 

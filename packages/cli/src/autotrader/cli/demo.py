@@ -73,6 +73,7 @@ from autotrader.execution.reconcile import Reconciler
 from autotrader.execution.service import ExecutionService, startup_checks
 from autotrader.execution.watchdog import Watchdog
 from autotrader.learning.journal import JournalService
+from autotrader.learning.lessons import LessonBook, LessonService, diagnose
 from autotrader.lifecycle.config import load_promotion_config
 from autotrader.lifecycle.evaluator import Evaluator, MemoryStageData
 from autotrader.lifecycle.registry import Registry, VersionInfo
@@ -134,7 +135,7 @@ LOOPS = [
     {"loop": "L5 Allocation", "status": "running", "what": "risk budget by live results (live stages only)"},
     {
         "loop": "L6 Failure lessons",
-        "status": "not built",
+        "status": "running",
         "what": "a lesson on every demotion or failed validation",
     },
     {"loop": "L7 Meta-learning", "status": "not built", "what": "which research sources produce survivors"},
@@ -193,6 +194,7 @@ class DemoStack:
     strategies: list[LoadedStrategy] = field(default_factory=list)
     ai: AiTraderService | None = None  # the owner's Claude tracks
     journal: JournalService | None = None  # every signal, its market snapshot and its outcome
+    lessons: LessonBook | None = None  # L6: a lesson on every demotion, retirement, failed validation
 
     def catalog(self) -> list[dict[str, Any]]:
         """Every strategy the demo can run, with its stage in the demo's registry."""
@@ -280,7 +282,17 @@ class DemoStack:
             if self.journal is not None
             else {"signals": 0, "by_strategy": [], "recent": []}
         )
-        return {**j, "loops": LOOPS}
+        entries = list(self.journal.entries.values()) if self.journal is not None else []
+        by: dict[str, list[Any]] = {}
+        for e in entries:
+            by.setdefault(f"{e.strategy_id} {e.strategy_version}", []).append(e)
+        lessons = self.lessons.top(k=20) if self.lessons is not None else []
+        return {
+            **j,
+            "diagnosis": {k: diagnose(v).model_dump(mode="json") for k, v in sorted(by.items())},
+            "lessons": [x.model_dump(mode="json") for x in lessons],
+            "loops": LOOPS,
+        }
 
     def _allocation(self) -> dict[str, Any]:
         cur = self.allocator.allocator.current
@@ -647,6 +659,16 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         clock, symbols, path=cfg.var / "journal.jsonl", history=history, events=news
     )
     stack.services.append(stack.journal)
+    journal = stack.journal
+    stack.lessons = LessonBook(cfg.var / "lessons.jsonl")
+    stack.services.append(
+        LessonService(
+            stack.lessons,
+            lambda: list(journal.entries.values()),
+            {ls.manifest.id: ls.manifest.family for ls in strategies},
+            {ls.manifest.id: dict(ls.manifest.param_values({})) for ls in strategies},
+        )
+    )
     if ai is not None:
         stack.ai = ai
         stack.services.append(ai)

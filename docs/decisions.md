@@ -279,3 +279,17 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
 - The CLI (demo process) may now import `learning` (ALLOWED widened): the journal runs inside `at demo run`.
 - The hub gets a Learning tab: per-strategy outcomes, the latest signals with their market snapshot, and the
   honest status of each of the eight loops (the old "Learning loops: running" label was false).
+
+## 2026-09-26 Phase 9, slice 2: failure lessons (L6)
+
+- The Diagnostician is rules for now, not a Claude agent: it splits a version's journaled outcomes by market
+  condition (session, with/against the D1 and H4 trend, volatility third, near/away from an H4 level, time of
+  day, spread, news within an hour) and names the worst condition against the rest, only with >= 10 signals on
+  each side and a gap of >= 0.3R per signal. Because many conditions are compared, the finding is worded as a
+  hypothesis with its counts. A Claude-written narrative can come with the L1 agents and their budget.
+- Lessons are written on system demotions and retirements (lifecycle StageChanged) and on failed `at validate`
+  reports; never on promotions or when the owner switches paper trading off. One lesson per event id
+  (uuid5 of event, version and time or code hash), append-only JSONL. SPEC-QUESTION: retrieval by pgvector
+  similarity waits for the Postgres store; meanwhile `top(family)` returns the newest (open question 35).
+- The hub's Learning tab shows each strategy's diagnosis live (evidence exists before any demotion) and the
+  lessons list.

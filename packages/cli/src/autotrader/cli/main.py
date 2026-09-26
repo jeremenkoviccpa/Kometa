@@ -35,13 +35,14 @@ from autotrader.engine.backtest import BacktestConfig, run_backtest
 from autotrader.execution.adapter import BrokerAdapter, BrokerUnavailableError
 from autotrader.execution.mt5 import MT5Adapter
 from autotrader.execution.service import StartupRefusedError, startup_checks
+from autotrader.learning.lessons import LessonBook, lesson_from_validation
 from autotrader.lifecycle.registry import IllegalTransitionError, Registry, VersionInfo
 from autotrader.risk.config import ConfigSignatureError, RiskLimits, load_signed
 from autotrader.strategies_api.loader import StrategyLoadError, load_strategy
 from autotrader.validation.config import ValidationConfig
 from autotrader.validation.inputs import prepare
 from autotrader.validation.poisoning import future_poisoning_test
-from autotrader.validation.report import write_html, write_json
+from autotrader.validation.report import to_json, write_html, write_json
 from autotrader.validation.runner import Validator, default_epoch
 from autotrader.validation.store import HoldoutLock, TrialRegistry
 
@@ -164,6 +165,10 @@ def _validate(args: argparse.Namespace) -> int:
     stem = out / f"{ls.manifest.id}_{ls.manifest.version}_{ls.code_hash[:8]}"
     write_json(rep, stem.with_suffix(".json"))
     write_html(rep, stem.with_suffix(".html"))
+    if not rep.passed:  # L6: a failed validation leaves a lesson for discovery
+        lesson = lesson_from_validation(to_json(rep), [], datetime.now(UTC))
+        if lesson is not None and LessonBook(settings.lessons_path).add(lesson):
+            print(f"lesson written to {settings.lessons_path}: {lesson.what_failed}")
     for c in rep.checks:
         print(f"{'ok  ' if c.passed else 'FAIL'} {c.name:28} {c.value:>12.4f} {c.op} {c.threshold}")
     for w in rep.warnings:

@@ -16,6 +16,8 @@ GATE = "packages/risk/src/autotrader/risk/gate.py"
 SIGN = "packages/core/src/autotrader/core/signing.py"
 JOURNAL = "packages/learning/src/autotrader/learning/journal.py"
 JOURNAL_T = "tests/unit/test_journal.py"
+LESSONS = "packages/learning/src/autotrader/learning/lessons.py"
+LESSONS_T = "tests/unit/test_lessons.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -416,5 +418,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         "    if e.outcome is not None or bar.open_time < e.created_at:\n",
         "    if e.outcome is not None:\n",
         (JOURNAL_T,),
+    ),
+    Mutation(
+        "lessons: a demotion leaves no lesson",
+        LESSONS,
+        "    elif LADDER.get(ev.to_stage, 0) < LADDER.get(ev.from_stage, 0):\n",
+        "    elif False:\n",
+        (LESSONS_T,),
+    ),
+    Mutation(
+        "lessons: a promotion is recorded as a failure",
+        LESSONS,
+        "    elif LADDER.get(ev.to_stage, 0) < LADDER.get(ev.from_stage, 0):\n",
+        "    elif LADDER.get(ev.to_stage, 0) != LADDER.get(ev.from_stage, 0):\n",
+        (LESSONS_T,),
     ),
 )

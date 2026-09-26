@@ -350,6 +350,8 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
       <p class="lead">Each signal a strategy makes becomes a lesson: the market when it fired, then where price went. Re-tuning and signal filtering learn from this journal, and they only ever produce new versions that must beat the old ones on unseen data.</p>
       <div class="scroll" id="journalBy"></div></div>
     <div class="panel s8"><h2>Latest signals and what happened</h2><div class="scroll" id="journalRecent" style="max-height:560px"></div></div>
+    <div class="panel s12"><h2>Where each strategy loses <span class="help" data-h="Each strategy's signals with a known outcome, split by market condition: session, with or against the D1/H4 trend, volatility, distance to a level, time of day, spread, news. The worst condition against the rest is a hypothesis, not a fact: many conditions are compared, and one can look bad by chance. It is evidence for failure lessons and for discovery; nothing changes a strategy by itself.">?</span></h2><div id="diagnosis"></div></div>
+    <div class="panel s12"><h2>Lessons <span class="help" data-h="Written on every demotion, retirement and failed validation (never when the owner simply switches paper trading off): what was tried, what failed, which metric broke, the suspected cause and the evidence. The strategy discovery agents will read these before proposing anything new.">?</span></h2><div class="scroll" id="lessons"></div></div>
     <div class="panel s4"><h2>Learning loops <span class="help" data-h="The eight loops of the spec, and what exists of each in this build.">?</span></h2><div id="loops"></div></div>
   </section>
 
@@ -952,6 +954,13 @@ async function renderLearning() {
   $("journalRecent").innerHTML = table([["When", r => stamp(r.created_at)], ["Strategy", r => esc(r.strategy_id)],
     ["Signal", r => `${esc(r.side)} · ${esc(r.status)}${r.shadow ? " · shadow" : ""}`], ["Outcome", r => out(r.outcome)],
     ["Market at the signal", r => `<span class="muted">${esc(f(r.features))}</span>`, "wrap"]], j.recent, "none yet");
+  const dg = Object.entries(j.diagnosis || {});
+  $("diagnosis").innerHTML = dg.length ? dg.map(([k, d]) => `<div class="row" style="align-items:flex-start"><span style="min-width:230px"><b>${esc(k)}</b><div class="muted">${d.signals} outcomes · ${d.avg_r == null ? "–" : signed(d.avg_r) + "R avg"}</div></span>
+    <span style="flex:1">${esc(d.finding)}${d.splits.length ? `<div class="muted" style="margin-top:4px">${d.splits.slice(0, 3).map(x => `${esc(x.condition)}: ${signed(x.avg_r)}R (${x.n}) vs ${signed(x.rest_avg_r)}R`).join(" · ")}</div>` : ""}</span></div>`).join("")
+    : `<div class="empty">no outcomes yet</div>`;
+  $("lessons").innerHTML = table([["When", r => stamp(r.at)], ["Event", r => `<span class="tag danger">${esc(r.event)}</span>`], ["Version", r => `<b>${esc(r.strategy_id)}</b> ${esc(r.strategy_version)}`],
+    ["What failed", r => esc(r.what_failed), "wrap"], ["Suspected cause", r => esc(r.suspected_cause), "wrap"]], j.lessons || [],
+    "no lessons yet: they are written on demotions, retirements and failed validations");
   $("loops").innerHTML = (j.loops || []).map(l => `<div class="row"><span><b>${esc(l.loop)}</b><div class="muted">${esc(l.what)}</div></span><span class="tag ${l.status === "running" ? "open" : ""}">${esc(l.status)}</span></div>`).join("");
 }
 
