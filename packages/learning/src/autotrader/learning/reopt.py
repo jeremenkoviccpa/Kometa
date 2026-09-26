@@ -4,7 +4,7 @@ Fit on the recent window (default 3 years, ending where the holdout starts, so t
 every variant recorded as a trial (the deflated Sharpe of the family pays for each one). A challenger exists
 only if some tunable parameter moved by more than the stability band, and each parameter moves at most 25% a
 step, so a strategy cannot lurch. The challenger is a new version of the same code with those parameters; it
-must pass full validation as its own version and then win in shadow (learning.challenger) before it swaps.
+must pass full validation as its own version and then win in shadow (lifecycle.champion) before it swaps.
 """
 
 from __future__ import annotations

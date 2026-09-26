@@ -18,11 +18,12 @@ JOURNAL = "packages/learning/src/autotrader/learning/journal.py"
 JOURNAL_T = "tests/unit/test_journal.py"
 LESSONS = "packages/learning/src/autotrader/learning/lessons.py"
 LESSONS_T = "tests/unit/test_lessons.py"
-CHALLENGER = "packages/learning/src/autotrader/learning/challenger.py"
+CHALLENGER = "packages/lifecycle/src/autotrader/lifecycle/champion.py"
 REOPT = "packages/learning/src/autotrader/learning/reopt.py"
 REOPT_T = "tests/unit/test_reopt_challenger.py"
 SNIPER = "strategies/library/smc_sniper/strategy.py"
 SNIPER_T = "tests/unit/test_smc_sniper.py"
+SWAP_T = "tests/unit/test_champion_swap.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -486,5 +487,20 @@ MUTATIONS: tuple[Mutation, ...] = (
         "    if not body >= disp:  # displacement: a strong candle between the sweep and the break\n",
         "    if False:\n",
         (SNIPER_T,),
+    ),
+    Mutation(
+        "lifecycle: any version may replace a champion",
+        REG,
+        '            chal.info.origin == "learning_reopt"\n'
+        "            and chal.info.parent_version == champion\n",
+        "            True\n",
+        (SWAP_T,),
+    ),
+    Mutation(
+        "lifecycle: a demotion long after the swap still rolls back",
+        CHALLENGER,
+        "    return demoted_at is not None and swapped_at <= demoted_at <= swapped_at + ROLLBACK_WINDOW\n",
+        "    return demoted_at is not None and swapped_at <= demoted_at\n",
+        (SWAP_T,),
     ),
 )

@@ -351,6 +351,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
       <div class="scroll" id="journalBy"></div></div>
     <div class="panel s8"><h2>Latest signals and what happened</h2><div class="scroll" id="journalRecent" style="max-height:560px"></div></div>
     <div class="panel s12"><h2>Where each strategy loses <span class="help" data-h="Each strategy's signals with a known outcome, split by market condition: session, with or against the D1/H4 trend, volatility, distance to a level, time of day, spread, news. The worst condition against the rest is a hypothesis, not a fact: many conditions are compared, and one can look bad by chance. It is evidence for failure lessons and for discovery; nothing changes a strategy by itself.">?</span></h2><div id="diagnosis"></div></div>
+    <div class="panel s12"><h2>Challengers <span class="help" data-h="Re-tuned versions of a live strategy (made by at learn reopt, validated as their own version) run in shadow next to their champion. The lifecycle swaps them only if, after 4 weeks and 40 signals each, the challenger's R per signal is higher with bootstrap p below 0.10/k and its drawdown is at most 1.2x; at most one swap a month; a demotion within 4 weeks rolls it back. Every test is kept.">?</span></h2><div class="scroll" id="challengers"></div></div>
     <div class="panel s12"><h2>Lessons <span class="help" data-h="Written on every demotion, retirement and failed validation (never when the owner simply switches paper trading off): what was tried, what failed, which metric broke, the suspected cause and the evidence. The strategy discovery agents will read these before proposing anything new.">?</span></h2><div class="scroll" id="lessons"></div></div>
     <div class="panel s4"><h2>Learning loops <span class="help" data-h="The eight loops of the spec, and what exists of each in this build.">?</span></h2><div id="loops"></div></div>
   </section>
@@ -958,6 +959,13 @@ async function renderLearning() {
   $("diagnosis").innerHTML = dg.length ? dg.map(([k, d]) => `<div class="row" style="align-items:flex-start"><span style="min-width:230px"><b>${esc(k)}</b><div class="muted">${d.signals} outcomes · ${d.avg_r == null ? "–" : signed(d.avg_r) + "R avg"}</div></span>
     <span style="flex:1">${esc(d.finding)}${d.splits.length ? `<div class="muted" style="margin-top:4px">${d.splits.slice(0, 3).map(x => `${esc(x.condition)}: ${signed(x.avg_r)}R (${x.n}) vs ${signed(x.rest_avg_r)}R`).join(" · ")}</div>` : ""}</span></div>`).join("")
     : `<div class="empty">no outcomes yet</div>`;
+  const tests = j.swap_tests || [];
+  $("challengers").innerHTML = table([["Version", r => `<b>${esc(r.strategy_id)}</b> ${esc(r.version)} <span class="muted">vs ${esc(r.champion)}</span>`],
+    ["Stage", r => `<span class="tag ${esc(r.stage)}">${esc(r.stage)}</span>`], ["Since", r => stamp(r.since)],
+    ["Latest test", r => { const t = tests.find(x => x.strategy_id === r.strategy_id && x.challenger === r.version);
+      return !t ? '<span class="muted">not tested yet</span>' : t.swap ? '<span class="tag open">swapped</span>'
+        : `<span class="muted">${esc((t.reasons || []).join("; "))}</span>`; }, "wrap"]],
+    j.challengers || [], "no challengers: at learn reopt makes them when recent data moves a parameter beyond the stability band");
   $("lessons").innerHTML = table([["When", r => stamp(r.at)], ["Event", r => `<span class="tag danger">${esc(r.event)}</span>`], ["Version", r => `<b>${esc(r.strategy_id)}</b> ${esc(r.strategy_version)}`],
     ["What failed", r => esc(r.what_failed), "wrap"], ["Suspected cause", r => esc(r.suspected_cause), "wrap"]], j.lessons || [],
     "no lessons yet: they are written on demotions, retirements and failed validations");

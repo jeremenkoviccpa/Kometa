@@ -124,8 +124,8 @@ LOOPS = [
     {"loop": "L1 Discovery", "status": "not built", "what": "Claude research agents propose new strategies"},
     {
         "loop": "L2 Re-optimization",
-        "status": "not built",
-        "what": "re-tune parameters; challenger vs champion",
+        "status": "running",
+        "what": "at learn reopt makes challengers; the lifecycle swaps them",
     },
     {
         "loop": "L3 Meta-labeling",
@@ -292,6 +292,19 @@ class DemoStack:
             **j,
             "diagnosis": {k: diagnose(v).model_dump(mode="json") for k, v in sorted(by.items())},
             "lessons": [x.model_dump(mode="json") for x in lessons],
+            "challengers": [
+                {
+                    "strategy_id": v.info.strategy_id,
+                    "version": v.info.version,
+                    "champion": v.info.parent_version,
+                    "stage": v.stage.value,
+                    "since": v.stage_since.isoformat(),
+                    "params": v.info.params,
+                }
+                for v in self.registry.versions()
+                if v.info.origin == "learning_reopt"
+            ],
+            "swap_tests": list(reversed(self.registry.swap_tests[-20:])),
             "loops": LOOPS,
         }
 

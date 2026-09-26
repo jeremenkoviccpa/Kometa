@@ -330,3 +330,21 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
 - The library's lookahead check for smc_sniper compares its whole state after every bar (clean vs future
   poisoned): it trades about once in 300 random-walk days, so comparing signals alone would prove nothing.
 - Macro's DXY and yields wait for data (open question 36).
+
+## 2026-09-26 Phase 9, slice 3b: the swap lives in the lifecycle
+
+- Spec section 4: learning may read the lifecycle and submit versions, never move stages. So the champion vs
+  challenger rule moved from learning to `lifecycle.champion`, and the swap is a registry operation run by the
+  evaluator (hourly, with the other gates). Learning's part stays `at learn reopt` (fit, step, validate,
+  submit).
+- `Registry.swap` is the one path besides the ladder that moves a version into a money stage: only a
+  learning_reopt child of the champion, in shadow, may take a champion's money stage; the champion goes to
+  shadow. `Registry.rollback` undoes the latest swap. Both are recorded as stage changes (actor evaluator)
+  and reach the bus like any other; every swap test is kept in the registry ledger (kind swap_test).
+  SPEC-QUESTION-free: the spec's "recorded as a trial" is met by the append-only swap_test records, since the
+  lifecycle may not import validation's trial registry.
+- The evidence is the lifecycle's own record of closed trades: the champion's money trades and the
+  challenger's shadow trades since the challenger entered shadow (R per closed trade stands for R per signal).
+- The hub's Learning tab lists challengers with their latest swap test.
+- Known gap: the hosted demo runs paper-trading versions only; a challenger in shadow there collects no
+  trades until the demo runs shadow sessions. Challengers come from offline `at learn reopt` runs today.

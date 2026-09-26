@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 from pydantic import Field
 
@@ -38,6 +38,7 @@ Origin = Literal["trader", "research_agent", "owner", "learning_reopt"]  # same 
 Actor = Literal["evaluator", "validation", "owner", "learning"]
 # the owner's paper-trading switch (read by learning: switching off is a choice, not a failure)
 PAPER_ON, PAPER_OFF = "owner: paper trading", "owner: back to shadow"
+SWAP_IN, SWAP_OUT, ROLLBACK = "swap: replaces", "swap: replaced by", "rollback:"
 
 ALLOWED: frozenset[tuple[Stage, Stage]] = frozenset(
     {
@@ -137,6 +138,7 @@ class Registry:
         self.alerts = alerts
         self.on_stage_change = on_stage_change
         self._v: dict[tuple[str, str], VersionState] = {}
+        self.swap_tests: list[dict[str, Any]] = []
         for rec in ledger.records():
             self._apply(rec["kind"], rec["payload"])
 
@@ -162,6 +164,8 @@ class Registry:
             prof = BacktestProfile.model_validate(p)
             key = (prof.strategy_id, prof.strategy_version)
             self._v[key] = self._v[key].model_copy(update={"profile": prof})
+        elif kind == "swap_test":
+            self.swap_tests.append(p)
         elif kind == "stage_change":
             r = StageRecord.model_validate(p)
             key = (r.strategy_id, r.version)
@@ -233,11 +237,27 @@ class Registry:
         ):
             legal = False  # nothing to compare shadow against without a validated profile
         if not legal:
-            msg = f"illegal transition {frm.value} -> {to.value} for {strategy_id} {version} ({reason})"
-            self.alerts.send(
-                Alert(severity=Severity.CRITICAL, kind="illegal_transition", message=msg, at=self.clock.now())
+            self._illegal(
+                f"illegal transition {frm.value} -> {to.value} for {strategy_id} {version} ({reason})"
             )
-            raise IllegalTransitionError(msg)
+        return self._record(v, to, reason, actor, metrics)
+
+    def _illegal(self, msg: str) -> NoReturn:
+        self.alerts.send(
+            Alert(severity=Severity.CRITICAL, kind="illegal_transition", message=msg, at=self.clock.now())
+        )
+        raise IllegalTransitionError(msg)
+
+    def _record(
+        self,
+        v: VersionState,
+        to: Stage,
+        reason: str,
+        actor: Actor,
+        metrics: dict[str, float | int | str | bool | None] | None = None,
+    ) -> StageChanged:
+        strategy_id, version = v.key
+        frm = v.stage
         now = self.clock.now()
         clean = {
             k: (None if isinstance(x, float) and not math.isfinite(x) else x)
@@ -277,6 +297,68 @@ class Registry:
         if self.on_stage_change is not None:
             self.on_stage_change(event)
         return event
+
+    # ------------------------------------------------------------ champion vs challenger (spec 14.8)
+
+    def swap(
+        self,
+        strategy_id: str,
+        champion: str,
+        challenger: str,
+        reason: str,
+        metrics: dict[str, Any] | None = None,
+    ) -> tuple[StageChanged, StageChanged]:
+        """The challenger takes the champion's stage; the champion goes to shadow (kept 4 weeks for rollback).
+        Only a re-optimized child of the champion, in shadow, may replace a champion in a money stage."""
+        champ, chal = self.get(strategy_id, champion), self.get(strategy_id, challenger)
+        if not (
+            chal.info.origin == "learning_reopt"
+            and chal.info.parent_version == champion
+            and chal.stage == Stage.SHADOW
+            and champ.stage in MONEY_STAGES
+        ):
+            self._illegal(
+                f"illegal swap {strategy_id} {champion} ({champ.stage.value}) <- {challenger} "
+                f"({chal.stage.value}, parent {chal.info.parent_version}): {reason}"
+            )
+        stage = champ.stage
+        a = self._record(chal, stage, f"{SWAP_IN} {champion}: {reason}", "evaluator", metrics)
+        b = self._record(
+            champ, Stage.SHADOW, f"{SWAP_OUT} {challenger}; kept in shadow for rollback", "evaluator"
+        )
+        return a, b
+
+    def last_swap(self, strategy_id: str) -> tuple[datetime, str, str, Stage] | None:
+        """(when, new champion, old champion, the stage it took) of the strategy's latest swap."""
+        best = None
+        for v in self._v.values():
+            if v.info.strategy_id != strategy_id:
+                continue
+            for h in v.history:
+                if h.reason.startswith(SWAP_IN) and (best is None or h.at > best[0]):
+                    old = h.reason[len(SWAP_IN) :].split(":")[0].strip()
+                    best = (h.at, h.version, old, h.to_stage)
+        return best
+
+    def rollback(self, strategy_id: str, reason: str) -> tuple[StageChanged, ...]:
+        """Undo the latest swap: the old champion gets its stage back, the new one goes to shadow."""
+        last = self.last_swap(strategy_id)
+        if last is None:
+            self._illegal(f"no swap to roll back for {strategy_id}: {reason}")
+        _at, new, old, stage = last
+        old_v, new_v = self.get(strategy_id, old), self.get(strategy_id, new)
+        if old_v.stage != Stage.SHADOW:
+            self._illegal(f"cannot roll back {strategy_id}: {old} is {old_v.stage.value}, not shadow")
+        out = []
+        if new_v.stage != Stage.SHADOW:
+            out.append(self._record(new_v, Stage.SHADOW, f"{ROLLBACK} {old}: {reason}", "evaluator"))
+        out.append(self._record(old_v, stage, f"{ROLLBACK} restored over {new}: {reason}", "evaluator"))
+        return tuple(out)
+
+    def record_swap_test(self, payload: dict[str, Any]) -> None:
+        """Every swap test, passed or failed, stays in the ledger (spec 14.8)."""
+        self.ledger.append("swap_test", payload)
+        self._apply("swap_test", payload)
 
     def promote_candidate(
         self, strategy_id: str, version: str, *, validation_passed: bool, synthetic: bool

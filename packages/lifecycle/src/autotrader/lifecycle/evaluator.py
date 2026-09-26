@@ -18,6 +18,7 @@ Demotion rules (money stages; trades since the version last entered micro from s
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -29,8 +30,9 @@ from autotrader.core.clock import Clock
 from autotrader.core.events import StageChanged
 from autotrader.core.models import Stage, Trade
 from autotrader.core.profile import BacktestProfile
+from autotrader.lifecycle.champion import Record, rollback_due, swap_test
 from autotrader.lifecycle.config import PromotionConfig
-from autotrader.lifecycle.registry import Registry, VersionState
+from autotrader.lifecycle.registry import DEMOTIONS, Registry, VersionState
 from autotrader.lifecycle.stats import (
     annualized_sharpe,
     bootstrap_mean_band,
@@ -43,6 +45,17 @@ from autotrader.lifecycle.stats import (
 
 Metrics = dict[str, float | int | str | bool | None]
 SHADOW_ACCOUNT = "shadow"
+
+
+def champion_record(trades: Sequence[Trade], since: datetime, now: datetime) -> Record:
+    """A version's R per closed trade since `since`, in exit order, for the swap test."""
+    ts = sorted(trades, key=lambda t: t.exit_time)
+    return Record(r=[t.r_multiple for t in ts], first_at=since, last_at=now)
+
+
+def stable_seed(key: tuple[str, str]) -> int:
+    """A bootstrap seed from the version's key: the same test on the same data gives the same p."""
+    return int(hashlib.sha256("|".join(key).encode()).hexdigest()[:8], 16)
 
 
 class StageData(Protocol):
@@ -128,7 +141,71 @@ class Evaluator:
             ev = await self.evaluate(*v.key)
             if ev is not None:
                 out.append(ev)
+        out += self.review_challengers()
         return out
+
+    # ------------------------------------------------------------ champion vs challenger (spec 14.8)
+
+    def review_challengers(self) -> list[StageChanged]:
+        """Every re-optimized challenger in shadow against its champion in a money stage: the swap test on
+        R per closed trade since the challenger entered shadow. Each test is recorded; a win swaps."""
+        now = self.clock.now()
+        out: list[StageChanged] = []
+        shadow = [
+            v
+            for v in self.reg.versions(Stage.SHADOW)
+            if v.info.origin == "learning_reopt" and v.info.parent_version is not None
+        ]
+        for chal in sorted(shadow, key=lambda v: v.key):
+            sid, parent = chal.info.strategy_id, chal.info.parent_version
+            if parent is None:
+                continue
+            champ = self.reg.get(sid, parent)
+            if champ.stage not in (Stage.MICRO, Stage.LIVE, Stage.SCALED):
+                continue
+            since = chal.stage_since
+            k = sum(1 for v in shadow if v.info.strategy_id == sid and v.info.parent_version == parent)
+            a = champion_record(self.data.trades(sid, parent, since, shadow=False), since, now)
+            b = champion_record(self.data.trades(sid, chal.info.version, since, shadow=True), since, now)
+            last = self.reg.last_swap(sid)
+            verdict = swap_test(
+                a, b, now=now, k=k, last_swap=last[0] if last else None, seed=stable_seed(chal.key)
+            )
+            self.reg.record_swap_test(
+                {
+                    "at": now.isoformat(),
+                    "strategy_id": sid,
+                    "champion": parent,
+                    "challenger": chal.info.version,
+                    "k": k,
+                    "swap": verdict.swap,
+                    "diff": verdict.diff,
+                    "p_value": verdict.p_value,
+                    "champion_dd": verdict.champion_dd,
+                    "challenger_dd": verdict.challenger_dd,
+                    "champion_signals": len(a.r),
+                    "challenger_signals": len(b.r),
+                    "reasons": verdict.reasons,
+                }
+            )
+            if verdict.swap:
+                out += self.reg.swap(
+                    sid,
+                    parent,
+                    chal.info.version,
+                    f"{verdict.diff:+.3f}R per signal, p {verdict.p_value:.3f}",
+                    {"diff": verdict.diff, "p_value": verdict.p_value},
+                )
+        return out
+
+    def _maybe_rollback(self, ev: StageChanged) -> list[StageChanged]:
+        """A new champion demoted within 4 weeks of its swap: the old champion comes back."""
+        if (ev.from_stage, ev.to_stage) not in DEMOTIONS and ev.to_stage != Stage.RETIRED:
+            return []
+        last = self.reg.last_swap(ev.strategy_id)
+        if last is None or last[1] != ev.strategy_version or not rollback_due(last[0], ev.at):
+            return []
+        return list(self.reg.rollback(ev.strategy_id, f"{ev.strategy_version} demoted: {ev.reason}"))
 
     async def on_trade_closed(self, trade: Trade) -> StageChanged | None:
         return await self.evaluate(trade.strategy_id, trade.strategy_version)
@@ -138,7 +215,10 @@ class Evaluator:
         if v.stage == Stage.SHADOW:
             return self._shadow(v)
         if v.stage in (Stage.MICRO, Stage.LIVE, Stage.SCALED):
-            return await self._money(v)
+            ev = await self._money(v)
+            if ev is not None:
+                self._maybe_rollback(ev)  # its events reach the bus through the registry's callback
+            return ev
         return None
 
     # ------------------------------------------------------------ shadow

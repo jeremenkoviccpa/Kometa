@@ -13,8 +13,8 @@ import pytest
 from autotrader.core.ledger import JsonlLedger
 from autotrader.core.series import to_ns
 from autotrader.data.synthetic import SyntheticSpec, generate, synthetic_instrument
-from autotrader.learning.challenger import Record, bootstrap_p, max_drawdown_r, rollback_due, swap_test
 from autotrader.learning.reopt import challenger_class, fit_recent, next_version, step_params
+from autotrader.lifecycle.champion import Record, bootstrap_p, max_drawdown_r, rollback_due, swap_test
 from autotrader.strategies_api.loader import load_strategy
 from autotrader.validation.inputs import prepare
 from autotrader.validation.runner import param_candidates
