@@ -1,31 +1,31 @@
 # CANDIDATE strategy (owner decision 2026-09-26). Not validated; trades money only after validation, shadow
-# and micro say so. The owner's SMC/ICT top-down "1M sniper entry" method, turned into fixed rules
-# (strategy.py docstring maps every step of the method to its rule).
+# and micro say so. 2.0.0 follows the owner's engine diagram: macro -> bias -> structure -> zones -> entry
+# (15M -> 5M) -> risk (1:2) with the owner's sniper score. 1.x (the M1 sequence) is in git history.
 id: smc_sniper
-version: 1.0.2
+version: 2.0.0
 origin: owner
 family: smc_top_down
 symbols: [XAUUSD]
-timeframes: [M1, M5, M15, H1, H4, D1]
+timeframes: [M5, M15, H1, H4, D1]
 params:
-  disp_atr: {value: 1.5, min: 1.0, max: 3.0, tunable: true}
-  window_m: {value: 90, min: 30, max: 240, tunable: true}
+  disp_atr: {value: 1.0, min: 0.6, max: 3.0, tunable: true}
+  window_m: {value: 240, min: 60, max: 480, tunable: true}
   max_sl_atr: {value: 1.0, min: 0.3, max: 2.0, tunable: true}
   stop_buffer_atr: {value: 0.3, min: 0.0, max: 1.0, tunable: true}
-  liq_lookback: {value: 20, min: 10, max: 60, tunable: true}
-  min_rr: {value: 3.0, min: 3.0, max: 5.0, tunable: false}
-  require_d1: {value: true}
-  m15_poi: {value: false}
-  require_m5: {value: true}
-  require_bos: {value: true}
+  liq_lookback: {value: 12, min: 6, max: 48, tunable: true}
+  zone_atr: {value: 0.3, min: 0.1, max: 0.8, tunable: true}
+  min_rr: {value: 2.0, min: 2.0, max: 5.0, tunable: false}
+  news_min: {value: 30, min: 0, max: 120, tunable: false}
+  min_score: {value: 80, min: 0, max: 100, tunable: false}
+  offsession_score: {value: 90, min: 0, max: 100, tunable: false}
+  max_spread_r: {value: 0.30, min: 0.02, max: 1.0, tunable: false}
 expected:
-  trades_per_month: 3
-  win_rate: 0.25
-  avg_r: 0.20
+  trades_per_month: 4
+  win_rate: 0.35
+  avg_r: 0.10
 description: >-
-  SMC/ICT top-down: D1 and H4 structure agree on the bias, trade only from discount (longs) or premium
-  (shorts) of the H4 dealing range, at an unmitigated H1 order block (refined on M15) left by a displacement
-  with a fair value gap. M5 shows the reaction, then M1 must print the full sequence: liquidity sweep and
-  rejection, CHOCH by a displacement candle that leaves an FVG, BOS, pullback into the FVG, and a pin bar or
-  engulfing confirmation. Stop beyond the sweep; target the nearest real liquidity (PDH/PDL, H1 swing,
-  range extreme); no trade under 3R or when the stop is too wide.
+  XAUUSD sniper: D1/H4/H1 bias (D1 against H4 = no trade), only from discount/premium at a demand/supply,
+  S/R or range-low zone; M15 liquidity sweep, rejection, displacement and BOS/CHoCH, then the first M5
+  break-and-retest with EMA 9/20 momentum; stop beyond the sweep, target the nearest liquidity (PDH/PWH,
+  equal highs, swings, session highs) at 1:2 or better, no news near, spread small. Scored 0-100 by the
+  owner's weights: 80+ trades (90+ outside London/New York), 70-79 is recorded as WATCH.

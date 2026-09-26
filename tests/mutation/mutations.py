@@ -18,6 +18,11 @@ JOURNAL = "packages/learning/src/autotrader/learning/journal.py"
 JOURNAL_T = "tests/unit/test_journal.py"
 LESSONS = "packages/learning/src/autotrader/learning/lessons.py"
 LESSONS_T = "tests/unit/test_lessons.py"
+CHALLENGER = "packages/learning/src/autotrader/learning/challenger.py"
+REOPT = "packages/learning/src/autotrader/learning/reopt.py"
+REOPT_T = "tests/unit/test_reopt_challenger.py"
+SNIPER = "strategies/library/smc_sniper/strategy.py"
+SNIPER_T = "tests/unit/test_smc_sniper.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -439,5 +444,47 @@ MUTATIONS: tuple[Mutation, ...] = (
         "    if ev.reason in (PAPER_ON, PAPER_OFF):\n",
         "    if False:\n",
         (LESSONS_T,),
+    ),
+    Mutation(
+        "challenger: more challengers keep the same p threshold",
+        CHALLENGER,
+        "    threshold = ALPHA / max(k, 1)\n",
+        "    threshold = ALPHA\n",
+        (REOPT_T,),
+    ),
+    Mutation(
+        "challenger: a deeper drawdown does not block the swap",
+        CHALLENGER,
+        "    if dd_b > DD_RATIO * dd_a:\n",
+        "    if False:\n",
+        (REOPT_T,),
+    ),
+    Mutation(
+        "challenger: fewer than 40 signals may swap",
+        CHALLENGER,
+        "        if weeks < MIN_WEEKS or len(rec.r) < MIN_SIGNALS:\n",
+        "        if weeks < MIN_WEEKS:\n",
+        (REOPT_T,),
+    ),
+    Mutation(
+        "reopt: parameters jump all the way to the fit",
+        REOPT,
+        "        v = c + max(-limit, min(limit, t - c))\n",
+        "        v = t\n",
+        (REOPT_T,),
+    ),
+    Mutation(
+        "sniper: a second retest is chased",
+        SNIPER,
+        "    if any(lo[i] <= level + tol for i in range(brk + 1, e)):  # an earlier retest: no chasing\n",
+        "    if False:\n",
+        (SNIPER_T,),
+    ),
+    Mutation(
+        "sniper: no displacement needed",
+        SNIPER,
+        "    if not body >= disp:  # displacement: a strong candle between the sweep and the break\n",
+        "    if False:\n",
+        (SNIPER_T,),
     ),
 )

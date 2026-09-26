@@ -8,13 +8,14 @@ a bar whose close_time is after `now`.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import fields
 from datetime import datetime
 
 import numpy as np
 import numpy.typing as npt
 
+from autotrader.core.indicators import EventIndex
 from autotrader.core.models import Timeframe
 from autotrader.core.series import BarsArray, from_ns
 
@@ -73,11 +74,47 @@ class SeriesBuffer:
         return {k: v[i].item() for k, v in self._cols.items()}
 
 
+NewsFn = Callable[[str, int], tuple[float | None, float | None]]  # (symbol, now ns) -> (to next, since last)
+
+
+def news_from_times(times_ns: Mapping[str, npt.NDArray[np.int64]]) -> NewsFn:
+    """Minutes to the next and since the last event, from sorted event times per symbol."""
+
+    def fn(symbol: str, now_ns: int) -> tuple[float | None, float | None]:
+        arr = times_ns.get(symbol)
+        if arr is None or not arr.size:
+            return None, None
+        i = int(np.searchsorted(arr, now_ns, side="left"))  # an event exactly now is "next", 0 minutes
+        nxt = (int(arr[i]) - now_ns) / 60e9 if i < arr.size else None
+        last = (now_ns - int(arr[i - 1])) / 60e9 if i > 0 else None
+        return nxt, last
+
+    return fn
+
+
+def news_from_index(
+    index: Callable[[], EventIndex | None], currencies: Mapping[str, tuple[str, str]]
+) -> NewsFn:
+    """The live calendar as a NewsFn: the nearest event in either currency of the symbol."""
+
+    def fn(symbol: str, now_ns: int) -> tuple[float | None, float | None]:
+        idx, ccys = index(), currencies.get(symbol)
+        if idx is None or ccys is None:
+            return None, None
+        t = from_ns(now_ns)
+        nxt = [m for c in ccys if (m := idx.minutes_to_next(t, c)) is not None]
+        last = [m for c in ccys if (m := idx.minutes_since_last(t, c)) is not None]
+        return (min(nxt) if nxt else None), (min(last) if last else None)
+
+    return fn
+
+
 class EngineMarketView:
-    def __init__(self, spread_fn: Callable[[str, int], float]) -> None:
+    def __init__(self, spread_fn: Callable[[str, int], float], news_fn: NewsFn | None = None) -> None:
         self._series: dict[tuple[str, Timeframe], SeriesBuffer] = {}
         self._now_ns = 0
         self._spread_fn = spread_fn
+        self._news_fn = news_fn
 
     def add_series(self, symbol: str, tf: Timeframe, buf: SeriesBuffer) -> None:
         self._series[(symbol, tf)] = buf
@@ -107,3 +144,6 @@ class EngineMarketView:
 
     def spread(self, symbol: str) -> float:
         return float(self._spread_fn(symbol, self._now_ns))
+
+    def minutes_to_news(self, symbol: str) -> tuple[float | None, float | None]:
+        return self._news_fn(symbol, self._now_ns) if self._news_fn is not None else (None, None)

@@ -310,3 +310,23 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   average R, one-sided bootstrap p < 0.10 / k, drawdown <= 1.2x, one swap a month; `rollback_due` for a
   demotion within 4 weeks. Slice 3b wires them to the registry (the swap itself, the old champion kept in
   shadow, rollback) with the journal's shadow outcomes as the data, and shows challengers in the hub.
+
+## 2026-09-26 smc_sniper 2.0.0: the owner's engine diagram and XAUUSD sniper spec
+
+- The owner replaced the M1 method with a staged one: macro -> bias -> structure -> zones -> entry (15M ->
+  5M) -> risk (1:2), then a detailed spec with a 0-100 sniper score. 2.0.0 codes it (strategy.py lists every
+  rule); smc_sniper_active is removed (2.0 moves entries to M15/M5 and 1:2, which is what it was for).
+- Hard rules vs score: bias (D1 against H4 = no trade), location (discount/premium only), a zone, the M15
+  structure shift at the zone, the first M5 retest, stop width, RR >= 2, spread and news are hard; the rest is
+  the owner's score. The owner's weights sum to 95, not 100 (owner told); kept as written, so 80 = valid and
+  90 = A+ of 95. 70-79 is recorded as WATCH in the strategy state, not traded; off-session needs 90.
+- The M5 trigger carries the context as it was at the M15 shift: the rally after a real shift otherwise lifted
+  price out of discount and cleared the context before the retest (found with a funnel probe).
+- Rejection may take 3 bars (one M15 candle on M5) and the displacement is the strongest candle from the sweep
+  to the break, as in the owner's "sweep -> rejection -> displacement -> BOS"; a single V-candle is all three.
+- Strategies can read scheduled high-impact news: `MarketView.minutes_to_news(symbol)` (backtest: the event
+  times the spread model already had; live: the ForexFactory calendar where it applies). Release times are
+  public in advance, so this is not lookahead.
+- The library's lookahead check for smc_sniper compares its whole state after every bar (clean vs future
+  poisoned): it trades about once in 300 random-walk days, so comparing signals alone would prove nothing.
+- Macro's DXY and yields wait for data (open question 36).

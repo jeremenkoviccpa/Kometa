@@ -26,7 +26,7 @@ from autotrader.core.series import BarsArray, from_ns
 from autotrader.engine.context import EngineContext
 from autotrader.engine.costs import CostModel, InstrumentCosts, StaticRates, rollover_times
 from autotrader.engine.gate import BacktestGuard, GateRequest, OrderGate
-from autotrader.engine.market import EngineMarketView, SeriesBuffer
+from autotrader.engine.market import EngineMarketView, SeriesBuffer, news_from_times
 from autotrader.engine.metrics import Metrics, compute
 from autotrader.engine.requests import StrategyError, check_requests
 from autotrader.engine.simbroker import Rejection, SimBroker, TradeRecord
@@ -117,7 +117,7 @@ def run_backtest(
         cfg.account_ccy,
         cfg.initial_equity,
     )
-    market = EngineMarketView(cost_model.spreads.spread)
+    market = EngineMarketView(cost_model.spreads.spread, news_from_times(cost_model.spreads.news_ns))
     for s, tf in subs:
         market.add_series(s, tf, SeriesBuffer(series.get((s, tf), m1[s] if tf == Timeframe.M1 else None)))
 

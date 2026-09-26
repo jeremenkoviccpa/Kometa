@@ -3,29 +3,34 @@ with signals before the cut, so the check is not vacuous), and is a candidate, n
 
 from __future__ import annotations
 
-from datetime import timedelta
+import json
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import polars as pl
 import pytest
 
+from autotrader.core.events import BarClosed
+from autotrader.core.models import Instrument
+from autotrader.core.series import to_ns
 from autotrader.data.instruments import load_instruments
 from autotrader.data.synthetic import SyntheticSpec, generate
+from autotrader.engine.backtest import run_backtest
+from autotrader.strategies_api import Request, Strategy, StrategyContext
 from autotrader.strategies_api.loader import load_strategy
-from autotrader.validation.poisoning import future_poisoning_test
+from autotrader.strategies_api.manifest import ParamValue
+from autotrader.validation.inputs import prepare
+from autotrader.validation.poisoning import future_poisoning_test, poison_after
 
 ROOT = Path(__file__).resolve().parents[2]
-# The owner's SMC method is strict: on random-walk prices, price almost never returns to an untouched
-# discount order block. Run its poisoning check at the loose end of its tunable ranges, so signals exist.
-SMC_LOOSE = {
-    "disp_atr": 1.0,
-    "window_m": 240,
-    "max_sl_atr": 2.0,
-    "stop_buffer_atr": 0.3,
-    "liq_lookback": 10,
-    "min_rr": 3.0,
+# The owner's sniper method trades about once in 300 random-walk days, so comparing signals would prove
+# nothing. For it the check compares its whole state after every bar instead (bias, zones, liquidity, M15
+# arming): hundreds of decisions, each of which would differ if it saw the future.
+STATE_TRACED = {"smc_sniper"}
+LOOSE = {
+    "smc_sniper": {"disp_atr": 0.6, "window_m": 480, "liq_lookback": 6, "zone_atr": 0.8, "max_sl_atr": 2.0}
 }
-POISON_PARAMS = {"smc_sniper": SMC_LOOSE, "smc_sniper_active": SMC_LOOSE}
 LIBRARY = sorted(p for p in (ROOT / "strategies" / "library").iterdir() if (p / "strategy.yaml").exists())
 
 
@@ -51,7 +56,6 @@ def test_the_library_has_the_owner_requested_styles() -> None:
         "candle_sr_reversal",
         "scalp_session_breakout",
         "smc_sniper",
-        "smc_sniper_active",
     }
 
 
@@ -64,12 +68,40 @@ def test_library_strategy_is_a_candidate_without_lookahead(path: Path, gold: pl.
     instruments, _ = load_instruments(ROOT / "config" / "instruments.yaml")
     t0 = gold["open_time"][0]
     cut = t0 + timedelta(days=260)
-    rep = future_poisoning_test(
-        ls.cls,
-        {"XAUUSD": gold},
-        {"XAUUSD": instruments["XAUUSD"]},
-        cut,
-        params=POISON_PARAMS.get(m.id),
-    )
+    if m.id in STATE_TRACED:
+        clean, poisoned = (
+            _state_trace(ls.cls, df, gold, instruments["XAUUSD"], cut, LOOSE[m.id])
+            for df in (gold, poison_after(gold, cut, seed=0))
+        )
+        before = [t for t in clean if t[0] < to_ns(cut)]
+        assert before == [t for t in poisoned if t[0] < to_ns(cut)]
+        assert sum('"hunt:XAUUSD": {' in st for _, st in before) > 0, (
+            "never armed: the check would prove little"
+        )
+        return
+    rep = future_poisoning_test(ls.cls, {"XAUUSD": gold}, {"XAUUSD": instruments["XAUUSD"]}, cut)
     assert rep.passed, rep.first_difference
     assert rep.signals_checked > 0, "no signals before the cut: the poisoning check would prove nothing"
+
+
+def _state_trace(
+    cls: type[Strategy],
+    df: pl.DataFrame,
+    clean: pl.DataFrame,
+    inst: Instrument,
+    cut: datetime,
+    params: Mapping[str, ParamValue],
+) -> list[tuple[int, str]]:
+    """The strategy's state after every bar it sees; the cost model comes from clean data before the cut."""
+    trace: list[tuple[int, str]] = []
+
+    class Traced(cls):  # type: ignore[valid-type,misc]
+        def on_bar(self, ctx: StrategyContext, event: BarClosed) -> list[Request]:
+            out: list[Request] = super().on_bar(ctx, event)
+            trace.append((to_ns(event.at), json.dumps(dict(ctx.state), sort_keys=True, default=str)))
+            return out
+
+    spread_src = {"XAUUSD": clean.filter(pl.col("open_time") < cut)}
+    inp = prepare({"XAUUSD": df}, cls.manifest, {"XAUUSD": inst}, spread_frames=spread_src)
+    run_backtest(Traced, inp.m1, inp.series, inp.instruments, inp.cost_model, params=params)
+    return trace

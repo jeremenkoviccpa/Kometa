@@ -57,6 +57,7 @@ from autotrader.data.calendar import ForexFactoryCalendar
 from autotrader.data.instruments import load_instruments
 from autotrader.data.synthetic import SyntheticSpec, generate, synthetic_instrument
 from autotrader.engine.costs import DEFAULT_SLIPPAGE_MULT
+from autotrader.engine.market import news_from_index
 from autotrader.engine.service import EngineLiveService
 from autotrader.execution.adapter import BrokerAdapter
 from autotrader.execution.bus_service import ExecutionBusService
@@ -608,7 +609,15 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
 
     acfg = load_allocator_config(root / "config" / "allocator.yaml", root / "config" / "promotion.yaml")
     allocator = AllocatorService(Allocator(acfg, cfg.var / "allocation.json"), bus, clock, instruments)
-    engine = EngineLiveService(bus, clock, money=[(ls.cls, {}) for ls in strategies], history=history)
+    # strategies see scheduled high-impact news only where the calendar applies (paper/live, a real clock)
+    news_fn = (
+        news_from_index(news, {s: (instruments[s].base, instruments[s].quote) for s in symbols})
+        if news is not None
+        else None
+    )
+    engine = EngineLiveService(
+        bus, clock, money=[(ls.cls, {}) for ls in strategies], history=history, news_fn=news_fn
+    )
     rules = next((ls for ls in library if ls.manifest.id == "smc_sniper"), None)
     ai = None
     if rules is not None and ai_tracks:
@@ -627,6 +636,7 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
             history=history,
             log_path=cfg.var / "ai_decisions.jsonl",
             env=settings.env,
+            news_fn=news_fn,
         )
 
     stack = DemoStack(

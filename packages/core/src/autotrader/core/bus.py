@@ -81,12 +81,16 @@ class Bus(Protocol):
 
 @dataclass
 class InMemoryBus:
-    """Same semantics as Redis Streams consumer groups (one cursor per group, pending until acked)."""
+    """Same semantics as Redis Streams consumer groups (one cursor per group, pending until acked).
+
+    Messages are stored serialized, like Redis, and decoded once: every group reading a message gets the same
+    frozen object (one decode per message instead of one per reader). Handlers never mutate a message."""
 
     streams: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
     cursors: dict[tuple[str, str], int] = field(default_factory=dict)
     pending: dict[tuple[str, str], dict[str, str]] = field(default_factory=dict)
     _seq: int = 0
+    _decoded: dict[str, Any] = field(default_factory=dict)
 
     async def publish(self, stream: str, msg: Any) -> str:
         self._seq += 1
@@ -109,7 +113,13 @@ class InMemoryBus:
         self.cursors[k] = start + len(batch)
         for mid, raw in batch:
             pend[mid] = raw
-        return [(mid, decode(raw)) for mid, raw in batch]
+        out = []
+        for mid, raw in batch:
+            msg = self._decoded.get(mid)
+            if msg is None:
+                msg = self._decoded[mid] = decode(raw)
+            out.append((mid, msg))
+        return out
 
     async def ack(self, stream: str, group: str, ids: Sequence[str]) -> None:
         pend = self.pending.setdefault((stream, group), {})

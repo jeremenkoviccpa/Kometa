@@ -31,6 +31,7 @@ from autotrader.core.models import Signal, Stage, Timeframe, Trade
 from autotrader.core.series import BarsArray
 from autotrader.engine.live import LiveRunner
 from autotrader.engine.live_bars import LiveBarBuilder
+from autotrader.engine.market import NewsFn
 from autotrader.engine.shadow import ShadowSession
 from autotrader.strategies_api.base import PendingView, PositionView, Request, Strategy
 from autotrader.strategies_api.manifest import ParamValue
@@ -49,6 +50,7 @@ class EngineLiveService:
         shadow: Sequence[ShadowSession] = (),
         money: Sequence[tuple[type[Strategy], Mapping[str, ParamValue]]] = (),
         history: Mapping[tuple[str, Timeframe], BarsArray] | None = None,
+        news_fn: NewsFn | None = None,
     ) -> None:
         """`history`: closed bars before the first live quote, so strategies start warmed up. They must
         end exactly where live bars begin (a trading-day boundary), or the first live bar would be partial."""
@@ -72,6 +74,7 @@ class EngineLiveService:
                 pending_fn=self._pending,
                 params=p,
                 history=history,
+                news_fn=news_fn,
             )
             for cls, p in money
         ]

@@ -15,7 +15,7 @@ from autotrader.core.events import BarClosed
 from autotrader.core.models import Bar, Timeframe
 from autotrader.core.series import BarsArray, to_ns
 from autotrader.engine.context import EngineContext
-from autotrader.engine.market import EngineMarketView, SeriesBuffer
+from autotrader.engine.market import EngineMarketView, NewsFn, SeriesBuffer
 from autotrader.engine.requests import StrategyError, check_requests
 from autotrader.strategies_api.base import FillView, PendingView, PositionView, Request, Strategy
 from autotrader.strategies_api.manifest import ParamValue
@@ -48,13 +48,14 @@ class LiveRunner:
         params: Mapping[str, ParamValue] | None = None,
         history: Mapping[tuple[str, Timeframe], BarsArray] | None = None,
         seed: int = 0,
+        news_fn: NewsFn | None = None,
     ) -> None:
         self.manifest = strategy_cls.manifest
         self.params = self.manifest.param_values(dict(params or {}))
         tfs = sorted(self.manifest.timeframes, key=lambda t: t.minutes)
         self.subs = [(s, tf) for s in self.manifest.symbols for tf in tfs]
         self.order = {k: i for i, k in enumerate(self.subs)}
-        self.market = EngineMarketView(spread_fn)
+        self.market = EngineMarketView(spread_fn, news_fn)
         for key in self.subs:
             buf = SeriesBuffer()
             hist = (history or {}).get(key)

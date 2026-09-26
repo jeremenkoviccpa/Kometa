@@ -83,6 +83,11 @@ class MarketView(Protocol):
         """Current (live) or modelled (backtest) spread in price units."""
         ...
 
+    def minutes_to_news(self, symbol: str) -> tuple[float | None, float | None]:
+        """(minutes until the next, minutes since the last) scheduled high-impact event in either currency
+        of the symbol, None where none is known. Release times are published in advance: no lookahead."""
+        ...
+
 
 class StrategyContext(Protocol):
     @property

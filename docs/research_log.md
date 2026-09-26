@@ -74,3 +74,27 @@ Check first: smc_sniper 1.0.2 (switches at their defaults) reproduces 1.0.1's 20
 Reading: both too rare to judge (validation needs 200 out-of-sample trades; the active variant makes about
 5 a year on gold). The active variant is near break-even after costs, which take about 0.3R a trade. More
 trades would need more markets (the method is not gold-specific) rather than looser rules.
+
+## 2026-09-26 smc_sniper 2.0.0 (the owner's engine diagram and sniper spec), real gold 2017-2023
+
+Same data as the entry above (2024 held out). Defaults: the owner's score threshold 80 (90 off-session).
+
+| Run | Trades | Win | Avg R | Total R |
+|---|---|---|---|---|
+| defaults (score >= 80) | 1 | 0% | -1.075 | -1.1 |
+| score threshold off (every setup that passed the hard rules) | 14 | 7% | about -0.8 | about -10.9 |
+
+The 14 setups by score: one 85 (VALID, London, -1.08R), eight 70-75 (WATCH), five 60-65. Thirteen stopped
+out at about -1.07R; one (70, Asia) made +3.15R. Missing most often: D1 or H1 bias agreement, displacement
+(a strong candle of 1.5x the threshold), S/R confluence.
+
+How it got here (funnel probes, one look each on 2018 first): M15 arming was being cancelled by the rally
+after a real shift (fixed: the trigger keeps the context of the shift); the M5 retest aimed at a small M5
+swing (fixed: the breakout area of the M15 BOS); stops beyond the M15 sweep were 2x the H1 ATR limit with
+0.2-0.5R to the nearest liquidity, so the stop moved to the retest's pullback low (the owner's "relevant
+swing low"); the spread limit is 30% of the risk (gold's $0.23 spread is 20-40% of those tight stops).
+
+Reading: the method as specified is extremely selective on gold (about 2 setups a year pass the hard rules)
+and the tight pullback-low stop is hit in almost every one: price revisits below the retest low before
+reaching the target. Not an edge on this evidence, and far too few trades to validate. Nothing was tuned on
+these results.

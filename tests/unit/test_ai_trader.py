@@ -161,7 +161,7 @@ async def test_the_judge_takes_a_setup_under_its_own_id() -> None:
     assert sig.reason.startswith("Claude (4.0R") and sig.tags["ai"] == "claude-sonnet-5"
     assert s.decisions[-1]["action"] == "take"
     system, context = claude.asked[0]
-    assert "JUDGE" in system and "liquidity sweep" in system
+    assert "JUDGE" in system and "SNIPER ENTRY" in system and "sweep -> rejection" in system
     assert json.loads(context)["candidate"]["tags"]["sweep"] == "2993.00000"
 
 

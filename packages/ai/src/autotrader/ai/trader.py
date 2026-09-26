@@ -46,6 +46,7 @@ from autotrader.core.series import BarsArray
 from autotrader.engine.context import signal_uuid
 from autotrader.engine.live import LiveRunner
 from autotrader.engine.live_bars import LiveBarBuilder
+from autotrader.engine.market import NewsFn
 from autotrader.engine.service import MONEY
 from autotrader.strategies_api.base import PositionView, Strategy
 
@@ -87,6 +88,7 @@ class AiTraderService:
         env: str = "dev",
         wall: Callable[[], float] = time.monotonic,
         disabled_reason: str = "",
+        news_fn: NewsFn | None = None,
     ) -> None:
         self.bus, self.clock, self.cfg = bus, clock, config
         self.versions = dict(versions)
@@ -102,6 +104,7 @@ class AiTraderService:
             positions_fn=lambda _sid, sym: self._positions(JUDGE_ID, sym),
             pending_fn=lambda _sid, _sym: [],
             history=history,
+            news_fn=news_fn,
         )
         self.builder = LiveBarBuilder(self.runner.subs)
         self.symbols = list(dict.fromkeys(s for s, _ in self.runner.subs))
@@ -331,6 +334,7 @@ class AiTraderService:
                 for i in range(len(b))
             ]
             for tf, n in CANDLES.items()
+            if (symbol, tf) in self.runner.subs  # the timeframes the rules use
             for b in [m.bars(symbol, tf, n)]
         }
         return json.dumps(payload, separators=(",", ":"), default=str)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
 
@@ -10,12 +11,13 @@ import polars as pl
 import pytest
 
 from autotrader.core.events import BarClosed
-from autotrader.core.models import Timeframe
-from autotrader.core.series import from_ns
+from autotrader.core.indicators import EventIndex
+from autotrader.core.models import CalendarEvent, Timeframe
+from autotrader.core.series import from_ns, to_ns
 from autotrader.data.convert import to_bars_array
 from autotrader.data.synthetic import SyntheticSpec, generate, synthetic_instrument
 from autotrader.engine.backtest import BacktestResult, run_backtest
-from autotrader.engine.market import EngineMarketView, SeriesBuffer
+from autotrader.engine.market import EngineMarketView, SeriesBuffer, news_from_index, news_from_times
 from autotrader.engine.requests import StrategyError
 from autotrader.strategies_api import Request, Strategy, StrategyContext, StrategyManifest
 from autotrader.strategies_api.loader import LoadedStrategy, load_strategy
@@ -161,3 +163,18 @@ def test_live_append_matches_backtest_view() -> None:
         a, b = pre.last(20), live.last(20)
         for k in ba.__dataclass_fields__:
             np.testing.assert_array_equal(getattr(a, k), getattr(b, k))
+
+
+def test_strategies_see_scheduled_news_from_backtest_times_and_the_live_calendar() -> None:
+    t0 = datetime(2026, 9, 25, 12, 0, tzinfo=UTC)
+    nfp = t0 + timedelta(minutes=30)
+    fn = news_from_times({"XAUUSD": np.array([to_ns(t0 - timedelta(hours=2)), to_ns(nfp)], dtype=np.int64)})
+    assert fn("XAUUSD", to_ns(t0)) == (30.0, 120.0)
+    assert fn("XAUUSD", to_ns(nfp)) == (0.0, 150.0)  # an event exactly now is the next one, 0 minutes away
+    assert fn("EURUSD", to_ns(t0)) == (None, None)  # nothing known is None, never 0
+    idx = EventIndex([CalendarEvent(time=nfp, currency="USD", impact="high", name="Non-Farm Payrolls")])
+    live = news_from_index(lambda: idx, {"XAUUSD": ("XAU", "USD")})
+    assert live("XAUUSD", to_ns(t0)) == (30.0, None)
+    assert news_from_index(lambda: None, {"XAUUSD": ("XAU", "USD")})("XAUUSD", to_ns(t0)) == (None, None)
+    mv = EngineMarketView(lambda s, t: 0.1)
+    assert mv.minutes_to_news("XAUUSD") == (None, None)  # no calendar wired: unknown
