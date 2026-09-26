@@ -60,7 +60,16 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
         status = c.get("/api/status").json()
         assert status["info"]["mode"].startswith("SIMULATED XAUUSD") and status["halt"] == "NORMAL"
         assert set(status["heartbeats"]) >= {"engine", "risk-gate", "execution"}
-        cat = {x["strategy_id"]: x for x in c.get("/api/catalog").json()}
+        catalog = c.get("/api/catalog").json()
+        cat = {x["strategy_id"]: x for x in catalog if not x["meta_model"]}
+        # L3: the shipped meta model runs as a filtered version beside the plain scalper, in shadow
+        [meta] = [x for x in catalog if x["meta_model"]]
+        assert (meta["strategy_id"], meta["version"], meta["trading"]) == (
+            "scalp_session_breakout",
+            "1.0.1",
+            False,
+        )
+        assert meta["style"].endswith("meta filter")
         assert (
             cat["scalp_session_breakout"]["trading"] and cat["scalp_session_breakout"]["style"] == "Scalping"
         )

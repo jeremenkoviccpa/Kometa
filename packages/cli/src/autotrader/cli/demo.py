@@ -24,6 +24,7 @@ import asyncio
 import json
 import logging
 import os
+import pickle
 import random
 import secrets
 import sys
@@ -79,6 +80,7 @@ from autotrader.execution.service import ExecutionService, startup_checks
 from autotrader.execution.watchdog import Watchdog
 from autotrader.learning.journal import JournalService
 from autotrader.learning.lessons import LessonBook, LessonService, diagnose
+from autotrader.learning.metafilter import ModelIntegrityError, load_model, meta_filtered, model_records
 from autotrader.lifecycle.config import load_promotion_config
 from autotrader.lifecycle.evaluator import Evaluator, MemoryStageData
 from autotrader.lifecycle.registry import Registry, VersionInfo
@@ -133,8 +135,8 @@ LOOPS = [
     },
     {
         "loop": "L3 Meta-labeling",
-        "status": "offline",
-        "what": "at learn meta: learns which signals to skip; not applied to live signals yet",
+        "status": "running",
+        "what": "at learn meta trains; passed models run as filtered versions in shadow",
     },
     {"loop": "L4 Regime", "status": "not built", "what": "trending/ranging/volatile days per strategy"},
     {"loop": "L5 Allocation", "status": "running", "what": "risk budget by live results (live stages only)"},
@@ -214,7 +216,9 @@ class DemoStack:
                     "strategy_id": m.id,
                     "version": m.version,
                     "family": m.family,
-                    "style": STYLE.get(m.family, m.family),
+                    "style": STYLE.get(m.family, m.family)
+                    + (" · meta filter" if m.origin == "learning_meta" else ""),
+                    "meta_model": getattr(ls.cls, "meta_model_id", None),
                     "description": m.description,
                     "symbols": list(m.symbols),
                     "timeframes": [t.value for t in m.timeframes],
@@ -265,7 +269,11 @@ class DemoStack:
         """Owner: start or stop paper trading a strategy. Stopping cancels its entries and closes its
         positions (like leaving a money stage). The stage change reaches every service first."""
         self.registry.paper_trade(strategy_id, version, on)
-        save_choice(choices_path(self.cfg), strategy_id, on)
+        ls = next(
+            (x for x in self.strategies if x.manifest.id == strategy_id and x.manifest.version == version),
+            None,
+        )
+        save_choice(choices_path(self.cfg), choice_key(ls) if ls is not None else strategy_id, on)
         await self.lifecycle.flush()
         if not on:
             order = DemotionOrder(
@@ -400,6 +408,46 @@ def trading_day_start(frame: pl.DataFrame, after: datetime) -> datetime:
         if bucket_open_ns(to_ns(t), Timeframe.D1) == to_ns(t):
             return t  # type: ignore[no-any-return]
     raise SystemExit("not enough synthetic data after the warm-up period")
+
+
+def meta_versions(library: list[LoadedStrategy], dirs: list[Path]) -> list[LoadedStrategy]:
+    """Meta-filtered versions for the models that passed out of sample (shipped in models/meta, or trained
+    here); a model whose file does not match its registry record, or whose strategy is absent, is skipped."""
+    out: list[LoadedStrategy] = []
+    seen: set[str] = set()
+    for d in dirs:
+        for rec in model_records(d):
+            if rec.get("status") != "passed_oos" or rec["model_id"] in seen:
+                continue
+            base = next(
+                (
+                    ls
+                    for ls in library
+                    if ls.manifest.id == rec["strategy_id"] and ls.manifest.version == rec["strategy_version"]
+                ),
+                None,
+            )
+            if base is None:
+                continue
+            try:
+                model = load_model(d, rec)
+            except (ModelIntegrityError, OSError, pickle.UnpicklingError):
+                log.exception("meta model %s not loaded", rec.get("model_id"))
+                continue
+            major, minor, patch = (int(x) for x in base.manifest.version.split("."))
+            cls = meta_filtered(base.cls, model, rec["model_id"], f"{major}.{minor}.{patch + 1}")
+            out.append(
+                LoadedStrategy(cls, cls.manifest, f"{base.code_hash}+meta:{rec['sha256'][:12]}", base.path)
+            )
+            seen.add(rec["model_id"])
+    return out
+
+
+def choice_key(ls: LoadedStrategy) -> str:
+    """Switches are saved per strategy id; a meta-filtered version has its own switch."""
+    return (
+        f"{ls.manifest.id}@{ls.manifest.version}" if ls.manifest.origin == "learning_meta" else ls.manifest.id
+    )
 
 
 def owner_strategies_dir(cfg: DemoConfig) -> Path:
@@ -538,6 +586,8 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
     for ls in load_owner_strategies(owner_strategies_dir(cfg)):
         mine = on_market(ls, cfg.symbol)
         library = [x for x in library if x.manifest.id != mine.manifest.id] + [mine]
+    # L3: each meta model that passed its gate runs as a filtered version beside its plain strategy (shadow)
+    library += meta_versions(library, [root / "models" / "meta", settings.models_dir])
     # the owner's Claude tracks: registered like strategies (a stage and a switch), off until switched on
     ai_tracks = [
         on_market(load_strategy(d), cfg.symbol)
@@ -719,7 +769,7 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
             )
         )
         registry.promote_candidate(m.id, m.version, validation_passed=False, synthetic=True)
-        if m.id in trade:
+        if choice_key(ls) in trade:  # a meta-filtered version starts in shadow unless switched on itself
             registry.paper_trade(m.id, m.version)
     data = MemoryStageData()
     ev = Evaluator(registry, load_promotion_config(root / "config" / "promotion.yaml"), data, clock, router)
@@ -994,5 +1044,10 @@ async def run_demo(cfg: DemoConfig, owner_token: str | None = None) -> DemoStack
 
 
 def stage_of(stack: DemoStack, strategy_id: str = "demo_ma_cross") -> Stage:
-    [v] = [v for v in stack.registry.versions() if v.info.strategy_id == strategy_id]
+    """The plain version's stage (a meta-filtered version of the same strategy has its own)."""
+    [v] = [
+        v
+        for v in stack.registry.versions()
+        if v.info.strategy_id == strategy_id and v.info.origin != "learning_meta"
+    ]
     return v.stage

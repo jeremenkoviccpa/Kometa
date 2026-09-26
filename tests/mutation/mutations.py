@@ -28,6 +28,8 @@ BUILDER = "packages/ai/src/autotrader/ai/builder.py"
 BUILDER_T = "tests/unit/test_assistant.py"
 META = "packages/learning/src/autotrader/learning/meta.py"
 META_T = "tests/unit/test_meta.py"
+METAF = "packages/learning/src/autotrader/learning/metafilter.py"
+METAF_T = "tests/unit/test_metafilter.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -495,8 +497,7 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         "lifecycle: any version may replace a champion",
         REG,
-        '            chal.info.origin == "learning_reopt"\n'
-        "            and chal.info.parent_version == champion\n",
+        "            chal.info.origin in LEARNED\n            and chal.info.parent_version == champion\n",
         "            True\n",
         (SWAP_T,),
     ),
@@ -534,5 +535,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         "        train = idx[~overlaps & ~embargoed & ((idx < a) | (idx >= b))]\n",
         "        train = idx[~overlaps & ((idx < a) | (idx >= b))]\n",
         (META_T,),
+    ),
+    Mutation(
+        "meta filter: signals the model expects to fail are kept",
+        METAF,
+        "                if p >= base_rate:\n",
+        "                if True:\n",
+        (METAF_T,),
+    ),
+    Mutation(
+        "meta filter: a model file loads without matching its record",
+        METAF,
+        '    if hashlib.sha256(blob).hexdigest() != record["sha256"]:\n',
+        "    if False:\n",
+        (METAF_T,),
     ),
 )

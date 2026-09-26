@@ -175,6 +175,13 @@ def test_only_a_reoptimized_child_in_shadow_may_replace_a_champion(tmp_path: Pat
     assert h.stage("1.0.2") == Stage.LIVE
 
 
+def test_a_meta_filtered_child_may_replace_its_champion_too(tmp_path: Path) -> None:
+    h = H(tmp_path)
+    h.challenger("1.0.1", origin="learning_meta")
+    h.reg.swap("s1", "1.0.0", "1.0.1", "meta filter won")
+    assert (h.stage("1.0.1"), h.stage("1.0.0")) == (Stage.LIVE, Stage.SHADOW)
+
+
 def test_a_new_champion_demoted_within_4_weeks_is_rolled_back(tmp_path: Path) -> None:
     h = H(tmp_path)
     race(h, BASE, BETTER)

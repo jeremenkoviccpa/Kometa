@@ -32,7 +32,7 @@ from autotrader.core.models import Stage, Trade
 from autotrader.core.profile import BacktestProfile
 from autotrader.lifecycle.champion import Record, rollback_due, swap_test
 from autotrader.lifecycle.config import PromotionConfig
-from autotrader.lifecycle.registry import DEMOTIONS, Registry, VersionState
+from autotrader.lifecycle.registry import DEMOTIONS, LEARNED, Registry, VersionState
 from autotrader.lifecycle.stats import (
     annualized_sharpe,
     bootstrap_mean_band,
@@ -154,7 +154,7 @@ class Evaluator:
         shadow = [
             v
             for v in self.reg.versions(Stage.SHADOW)
-            if v.info.origin == "learning_reopt" and v.info.parent_version is not None
+            if v.info.origin in LEARNED and v.info.parent_version is not None
         ]
         for chal in sorted(shadow, key=lambda v: v.key):
             sid, parent = chal.info.strategy_id, chal.info.parent_version

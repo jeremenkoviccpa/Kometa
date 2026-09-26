@@ -226,7 +226,37 @@ def _learn_meta(args: argparse.Namespace) -> int:
         print(f"  warning: {w}")
     if rec is not None:
         print(f"{rec.status}: model {rec.model_id} in {settings.models_dir / rec.file}")
+    if rec is not None and rep.passed and args.challenger:
+        _meta_challenger(m.id, m.version, rec.model_id)
     return 0 if rep.passed else 1
+
+
+def _meta_challenger(strategy_id: str, version: str, model_id: str) -> None:
+    """Register the meta-filtered version in shadow as the plain version's challenger (lifecycle decides)."""
+    reg, _ = _registry()
+    try:
+        parent = reg.get(strategy_id, version)
+    except KeyError:
+        print(f"not registered as a challenger: {strategy_id} {version} is not in the registry")
+        return
+    taken = [v.key[1] for v in reg.versions() if v.key[0] == strategy_id]
+    new = next_version(version, [*taken, version])
+    reg.submit_candidate(
+        VersionInfo(
+            strategy_id=strategy_id,
+            version=new,
+            family=parent.info.family,
+            origin="learning_meta",
+            demo_only=parent.info.demo_only,
+            code_hash=parent.info.code_hash,
+            params={**parent.info.params, "meta_model": model_id},
+            parent_version=version,
+            created_by="learning",
+        ),
+        parent.profile.model_copy(update={"strategy_version": new}) if parent.profile is not None else None,
+    )
+    stage = reg.promote_candidate(strategy_id, new, validation_passed=True, synthetic=False)
+    print(f"challenger {strategy_id} {new} (meta filter {model_id}) registered: {stage.to_stage.value}")
 
 
 def _learn_reopt(args: argparse.Namespace) -> int:
@@ -644,6 +674,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_data_args(me)
     me.add_argument("--symbols", nargs="*", help="markets to learn from (default: the manifest's)")
     me.add_argument("--config", default="config/validation.yaml")
+    me.add_argument(
+        "--challenger", action="store_true", help="if it passes: register the filtered version in shadow"
+    )
     me.set_defaults(func=_learn_meta)
 
     rk = sub.add_parser("risk", help="owner-side risk tools").add_subparsers(dest="risk_cmd", required=True)

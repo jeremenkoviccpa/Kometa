@@ -34,7 +34,8 @@ from autotrader.core.ledger import Ledger
 from autotrader.core.models import Frozen, Stage, UtcDatetime
 from autotrader.core.profile import BacktestProfile
 
-Origin = Literal["trader", "research_agent", "owner", "learning_reopt"]  # same as the strategy manifest
+Origin = Literal["trader", "research_agent", "owner", "learning_reopt", "learning_meta"]  # as the manifest
+LEARNED = frozenset({"learning_reopt", "learning_meta"})  # challengers learning made of a champion
 Actor = Literal["evaluator", "validation", "owner", "learning"]
 # the owner's paper-trading switch (read by learning: switching off is a choice, not a failure)
 PAPER_ON, PAPER_OFF = "owner: paper trading", "owner: back to shadow"
@@ -309,10 +310,11 @@ class Registry:
         metrics: dict[str, Any] | None = None,
     ) -> tuple[StageChanged, StageChanged]:
         """The challenger takes the champion's stage; the champion goes to shadow (kept 4 weeks for rollback).
-        Only a re-optimized child of the champion, in shadow, may replace a champion in a money stage."""
+        Only a learned child of the champion (re-optimized or meta-filtered), in shadow, may replace a
+        champion in a money stage."""
         champ, chal = self.get(strategy_id, champion), self.get(strategy_id, challenger)
         if not (
-            chal.info.origin == "learning_reopt"
+            chal.info.origin in LEARNED
             and chal.info.parent_version == champion
             and chal.stage == Stage.SHADOW
             and champ.stage in MONEY_STAGES

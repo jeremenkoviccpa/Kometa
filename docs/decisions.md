@@ -399,3 +399,19 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   signals, stores the model (pickle, sha256) and appends its record to var/models/registry.jsonl.
 - Not in this slice: applying a model to live signals (a filter in front of the allocator, deterministic
   inference, only after a shadow A/B win). Hub loop status: L3 "offline".
+
+## 2026-09-26 Phase 9, slice 4b: the meta filter on live signals
+
+- A meta model that passed its gate runs as a new version of the same strategy (`learning.metafilter`):
+  origin learning_meta (added to the manifest and registry origins), parent the plain version. Before a
+  signal leaves, the wrapper takes the market snapshot the model learned from (the same features, the spread
+  quoted on the last closed M5 bar, the rolling win rate from its own exits) and drops the signal if the
+  predicted win probability is below the training base rate. It never adds, moves or grows a signal; other
+  requests pass through; the model's extra timeframes never reach the strategy. It needs 60 daily bars
+  before it runs (the model's D1 features).
+- Such a version is a challenger: the lifecycle's swap rule (14.8) now accepts learning_meta children as well
+  as learning_reopt (Registry.LEARNED). `at learn meta --challenger` registers it in shadow; the demo runs every
+  passed model it finds (models/meta, shipped in the repo, and the local models dir) beside its plain
+  strategy, in shadow with its own switch (owner_choices key id@version), so the A/B is visible in the hub.
+- A model file is a pickle (loading runs code): it loads only if its sha256 matches its registry record; a
+  tampered or missing file is skipped with a log line. models/meta ships the scalper's model from the 9.4a run.

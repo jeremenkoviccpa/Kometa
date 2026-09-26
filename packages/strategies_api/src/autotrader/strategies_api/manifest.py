@@ -51,7 +51,7 @@ class StrategyManifest(BaseModel):
 
     id: str = Field(pattern=r"^[a-z][a-z0-9_]{2,63}$")
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
-    origin: Literal["trader", "research_agent", "owner", "learning_reopt"]
+    origin: Literal["trader", "research_agent", "owner", "learning_reopt", "learning_meta"]
     family: str = Field(pattern=r"^[a-z][a-z0-9_]{1,63}$")
     symbols: tuple[str, ...] = Field(min_length=1)
     timeframes: tuple[Timeframe, ...] = Field(min_length=1)
