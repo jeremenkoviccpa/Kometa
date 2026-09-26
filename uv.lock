@@ -399,6 +399,8 @@ dependencies = [
     { name = "autotrader-core" },
     { name = "autotrader-engine" },
     { name = "autotrader-lifecycle" },
+    { name = "autotrader-strategies-api" },
+    { name = "autotrader-validation" },
     { name = "numpy" },
     { name = "pydantic" },
 ]
@@ -408,6 +410,8 @@ requires-dist = [
     { name = "autotrader-core", editable = "packages/core" },
     { name = "autotrader-engine", editable = "packages/engine" },
     { name = "autotrader-lifecycle", editable = "packages/lifecycle" },
+    { name = "autotrader-strategies-api", editable = "packages/strategies_api" },
+    { name = "autotrader-validation", editable = "packages/validation" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2" },
 ]

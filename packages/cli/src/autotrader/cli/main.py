@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from datetime import date as date_t
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import yaml
@@ -22,9 +23,10 @@ from autotrader.core.clock import LiveClock
 from autotrader.core.hashing import canonical_json
 from autotrader.core.ledger import JsonlLedger
 from autotrader.core.models import Instrument
+from autotrader.core.series import to_ns
 from autotrader.core.settings import Settings
 from autotrader.core.signing import generate_keypair, load_private, load_public, sign_bytes
-from autotrader.core.timeutil import utc
+from autotrader.core.timeutil import ensure_utc, utc
 from autotrader.data.instruments import load_instruments
 from autotrader.data.market_hours import FX_HOURS
 from autotrader.data.quality import check_bars
@@ -36,9 +38,10 @@ from autotrader.execution.adapter import BrokerAdapter, BrokerUnavailableError
 from autotrader.execution.mt5 import MT5Adapter
 from autotrader.execution.service import StartupRefusedError, startup_checks
 from autotrader.learning.lessons import LessonBook, lesson_from_validation
+from autotrader.learning.reopt import challenger_class, fit_recent, next_version, step_params
 from autotrader.lifecycle.registry import IllegalTransitionError, Registry, VersionInfo
 from autotrader.risk.config import ConfigSignatureError, RiskLimits, load_signed
-from autotrader.strategies_api.loader import StrategyLoadError, load_strategy
+from autotrader.strategies_api.loader import LoadedStrategy, StrategyLoadError, load_strategy
 from autotrader.validation.config import ValidationConfig
 from autotrader.validation.inputs import prepare
 from autotrader.validation.poisoning import future_poisoning_test
@@ -143,6 +146,21 @@ def _validate(args: argparse.Namespace) -> int:
             f"SYN{i}" for i in range(2, 2 + cfg.cross_market.of_pairs - len(universe))
         )
     frames, synthetic = _load_frames(args, universe)
+    rep, _stem = _validate_and_report(args, settings, ls, cfg, cfg_hash, universe, frames, synthetic)
+    return 0 if rep.passed else 1
+
+
+def _validate_and_report(
+    args: argparse.Namespace,
+    settings: Settings,
+    ls: LoadedStrategy,
+    cfg: ValidationConfig,
+    cfg_hash: str,
+    universe: tuple[str, ...],
+    frames: dict[str, pl.DataFrame],
+    synthetic: bool,
+) -> tuple[Any, Path]:
+    """Full validation, the JSON and HTML reports, a lesson if it failed, and the verdict printed."""
     ledger = JsonlLedger(settings.ledger_path)
     epoch_end = min(f["open_time"][-1] for f in frames.values())
     epoch = default_epoch(epoch_end, cfg.holdout.months, args.epoch)
@@ -174,7 +192,73 @@ def _validate(args: argparse.Namespace) -> int:
     for w in rep.warnings:
         print(f"warn {w}")
     print(f"{'PASSED' if rep.passed else 'FAILED'}  report: {stem.with_suffix('.html')}")
-    return 0 if rep.passed else 1
+    return rep, stem
+
+
+def _learn_reopt(args: argparse.Namespace) -> int:
+    """L2: fit on the recent window, step toward it, validate the challenger, register it in shadow."""
+    settings = Settings()
+    ls = load_strategy(Path(args.strategy))
+    m = ls.manifest
+    cfg, cfg_hash = ValidationConfig.load(Path(args.config))
+    universe = tuple(dict.fromkeys([*m.symbols, *(args.universe or [])]))
+    if args.data is None and len(universe) < cfg.cross_market.of_pairs:
+        universe = universe + tuple(
+            f"SYN{i}" for i in range(2, 2 + cfg.cross_market.of_pairs - len(universe))
+        )
+    frames, synthetic = _load_frames(args, universe)
+    epoch_end = min(f["open_time"][-1] for f in frames.values())
+    holdout_start = ensure_utc(default_epoch(epoch_end, cfg.holdout.months, args.epoch).start)
+    start = holdout_start - timedelta(days=365.25 * args.window_years)
+    inp = prepare(
+        {s: frames[s] for s in m.symbols},
+        m,
+        _instruments(args, tuple(m.symbols), synthetic),
+        synthetic=synthetic,
+    )
+    fit = fit_recent(
+        ls.cls,
+        inp,
+        start_ns=to_ns(start),
+        end_ns=to_ns(holdout_start),
+        budget=args.budget or cfg.walk_forward.search_budget,
+        min_trades=cfg.walk_forward.min_train_trades,
+        registry=TrialRegistry(JsonlLedger(settings.ledger_path)),
+        code_hash=ls.code_hash,
+    )
+    print(
+        f"fit {fit.tried} parameter sets on {start:%Y-%m-%d}..{holdout_start:%Y-%m-%d} (holdout unseen): "
+        f"best {fit.params} (score {fit.score:.2f}, {fit.trades} trades)"
+    )
+    new = step_params(m, m.param_values(), fit.params, band=cfg.stability.param_shift)
+    if new is None:
+        print("no challenger: every parameter is within the stability band of the champion")
+        return 0
+    reg, _ = _registry()
+    taken = [v.key[1] for v in reg.versions() if v.key[0] == m.id]
+    version = next_version(m.version, [*taken, m.version])
+    cls = challenger_class(ls.cls, version, new)
+    challenger = LoadedStrategy(cls, cls.manifest, ls.code_hash, ls.path)
+    print(f"challenger {m.id} {version}: {new} (at most 25% per parameter per step)")
+    rep, _stem = _validate_and_report(args, settings, challenger, cfg, cfg_hash, universe, frames, synthetic)
+    if not rep.passed:
+        return 1
+    reg.submit_candidate(
+        VersionInfo(
+            strategy_id=m.id,
+            version=version,
+            family=m.family,
+            origin="learning_reopt",
+            demo_only=False,
+            code_hash=ls.code_hash,
+            params=dict(new),
+            parent_version=m.version,
+            created_by="learning",
+        )
+    )
+    stage = reg.promote_candidate(m.id, version, validation_passed=True, synthetic=synthetic)
+    print(f"registered {m.id} {version} ({stage.to_stage.value}) next to champion {m.version}")
+    return 0
 
 
 def _risk_keygen(args: argparse.Namespace) -> int:
@@ -507,6 +591,20 @@ def build_parser() -> argparse.ArgumentParser:
     va.add_argument("--epoch", default=None, help="holdout epoch id")
     va.add_argument("--out", default=None)
     va.set_defaults(func=_validate)
+
+    le = sub.add_parser("learn", help="learning loops (phase 9)").add_subparsers(
+        dest="learn_cmd", required=True
+    )
+    ro = le.add_parser("reopt", help="L2: re-fit on recent data; a validated challenger goes to shadow")
+    ro.add_argument("strategy")
+    _add_data_args(ro)
+    ro.add_argument("--universe", nargs="*", help="extra symbols for cross-market")
+    ro.add_argument("--config", default="config/validation.yaml")
+    ro.add_argument("--epoch", default=None, help="holdout epoch id")
+    ro.add_argument("--out", default=None)
+    ro.add_argument("--window-years", type=float, default=3.0, help="recent window to fit on (spec: 3)")
+    ro.add_argument("--budget", type=int, default=None, help="parameter sets to try (default: search_budget)")
+    ro.set_defaults(func=_learn_reopt)
 
     rk = sub.add_parser("risk", help="owner-side risk tools").add_subparsers(dest="risk_cmd", required=True)
     kg = rk.add_parser("keygen", help="create the owner Ed25519 key pair (run on the owner's machine)")

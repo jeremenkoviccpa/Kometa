@@ -297,3 +297,16 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   demotion lesson, because the filter and its test both used a reason string typed by hand. The registry now
   exports PAPER_ON / PAPER_OFF, the lesson writer imports them, and the test drives the real Registry. Same
   root cause as the Phase 8 lesson (test against what the real writer produces); noted for the Phase 9 retro.
+
+## 2026-09-26 Phase 9, slice 3a: re-optimization and the champion/challenger rule (L2)
+
+- `at learn reopt <strategy> --data <dir>`: fits `search_budget` parameter sets on the recent window (default 3
+  years) that ends where the holdout starts, records every set as a trial (kind wf_train, note "reopt"), steps
+  each tunable parameter at most 25% toward the fit, and makes a challenger only if some parameter moved more
+  than the stability band (validation.yaml param_shift, 20%). The challenger is the same code as a new
+  version (next free patch of the champion's major.minor, origin learning_reopt, parent_version set); it is
+  fully validated as its own version (a failure leaves a lesson) and, if it passes, registered in shadow.
+- `learning.challenger.swap_test` is spec 14.8 as a pure function: 4 weeks and 40 signals for both, higher
+  average R, one-sided bootstrap p < 0.10 / k, drawdown <= 1.2x, one swap a month; `rollback_due` for a
+  demotion within 4 weeks. Slice 3b wires them to the registry (the swap itself, the old champion kept in
+  shadow, rollback) with the journal's shadow outcomes as the data, and shows challengers in the hub.
