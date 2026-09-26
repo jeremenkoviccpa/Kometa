@@ -44,6 +44,7 @@ class FakeClaude:
         self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         assert "strategy_id" in str(tools) and "Indicators" in system and "ctx.signal" in system
+        assert "same language as the owner's latest message" in system
         self.seen.append([dict(m) for m in messages])
         return self.replies.pop(0)
 

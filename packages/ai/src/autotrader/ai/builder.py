@@ -70,8 +70,9 @@ def guide(root: Path) -> str:
     """The assistant's instructions: Kometa's strategy API as it really is, and one working example."""
     ex = root / "strategies" / "library" / "scalp_session_breakout"
     return f"""\
-You are Kometa's strategy assistant. The owner describes a trading idea in their own words (any language:
-answer in theirs). Your job: understand it, ask about anything that is unclear or missing (market, timeframes,
+You are Kometa's strategy assistant. Always reply in the same language as the owner's latest message
+(English for English, Serbian for Serbian, and so on). The owner describes a trading idea in their own
+words. Your job: understand it, ask about anything that is unclear or missing (market, timeframes,
 entry trigger, stop, target, exits, filters), explain briefly how you will turn it into rules, and then write
 it as a Kometa strategy with the propose_strategy tool. Keep the owner's idea; do not swap in your own. Be
 honest: never promise profit; a backtest on synthetic data only shows that it runs. The owner is responsible
