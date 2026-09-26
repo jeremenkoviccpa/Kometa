@@ -415,3 +415,19 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   strategy, in shadow with its own switch (owner_choices key id@version), so the A/B is visible in the hub.
 - A model file is a pickle (loading runs code): it loads only if its sha256 matches its registry record; a
   tampered or missing file is skipped with a log line. models/meta ships the scalper's model from the 9.4a run.
+
+## 2026-09-27 Phase 9, slice 5: regime detection (L4)
+
+- The regime model is rules, as the spec asks to start: from closed daily bars, the trend from Kaufman's
+  efficiency ratio over 20 closes (trending >= 0.35, ranging <= 0.20, mixed between) and the volatility from
+  the daily ATR's percentile over 100 days (high >= 0.80, low <= 0.20). Both are new snapshot features
+  (efficiency_d1, atr_pct_d1; defaults keep older journals readable), so the journal, the L6 diagnosis (new
+  conditions "in a trending market", ...) and future meta models see the regime without extra plumbing.
+  A GMM or HMM challenger and cross-pair correlation come later (open question 38).
+- A regime is proposed as blocked only with >= 20 signals in it and >= 20 outside, a gap of >= 0.3R per signal,
+  and a negative average in it. The filter is a new version (origin learning_regime, a learned challenger the
+  swap rule accepts) that skips signals in those regimes; the in-sample gain is automatic by construction, so
+  `at learn regime --validate` runs full validation on it and only a pass may enter shadow (`--challenger`).
+- First run, the scalper on real gold 2017-2022: it loses in every regime (-0.07 to -0.14R per signal), no
+  regime stands out, no filter proposed.
+- The hub's Learning tab shows today's regime per market and each strategy's results by regime.

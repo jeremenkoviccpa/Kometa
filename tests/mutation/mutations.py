@@ -30,6 +30,8 @@ META = "packages/learning/src/autotrader/learning/meta.py"
 META_T = "tests/unit/test_meta.py"
 METAF = "packages/learning/src/autotrader/learning/metafilter.py"
 METAF_T = "tests/unit/test_metafilter.py"
+REGIME = "packages/learning/src/autotrader/learning/regime.py"
+REGIME_T = "tests/unit/test_regime.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -549,5 +551,20 @@ MUTATIONS: tuple[Mutation, ...] = (
         '    if hashlib.sha256(blob).hexdigest() != record["sha256"]:\n',
         "    if False:\n",
         (METAF_T,),
+    ),
+    Mutation(
+        "regime: blocked on too few signals",
+        REGIME,
+        "        if s.n >= MIN_N and s.rest_n >= MIN_N"
+        " and s.rest_avg_r - s.avg_r >= MIN_GAP and s.avg_r < 0\n",
+        "        if s.rest_avg_r - s.avg_r >= MIN_GAP and s.avg_r < 0\n",
+        (REGIME_T,),
+    ),
+    Mutation(
+        "regime: the filter skips signals in any regime",
+        REGIME,
+        "                    if now & skip_set:\n",
+        "                    if now:\n",
+        (REGIME_T,),
     ),
 )

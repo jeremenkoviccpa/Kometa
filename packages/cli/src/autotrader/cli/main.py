@@ -40,8 +40,9 @@ from autotrader.execution.service import StartupRefusedError, startup_checks
 from autotrader.learning.history import journal_from_backtest
 from autotrader.learning.lessons import LessonBook, lesson_from_validation
 from autotrader.learning.meta import train_and_register
+from autotrader.learning.regime import blocked, by_regime, finding, regime_filtered
 from autotrader.learning.reopt import challenger_class, fit_recent, next_version, step_params
-from autotrader.lifecycle.registry import IllegalTransitionError, Registry, VersionInfo
+from autotrader.lifecycle.registry import IllegalTransitionError, Origin, Registry, VersionInfo
 from autotrader.risk.config import ConfigSignatureError, RiskLimits, load_signed
 from autotrader.strategies_api.loader import LoadedStrategy, StrategyLoadError, load_strategy
 from autotrader.validation.config import ValidationConfig
@@ -231,8 +232,54 @@ def _learn_meta(args: argparse.Namespace) -> int:
     return 0 if rep.passed else 1
 
 
+def _learn_regime(args: argparse.Namespace) -> int:
+    """L4: the strategy's results by daily regime on the research data; a filter for the regimes it does badly
+    in, as a new version that must pass full validation before it may enter shadow."""
+    settings = Settings()
+    ls = load_strategy(Path(args.strategy))
+    m = ls.manifest
+    cfg, cfg_hash = ValidationConfig.load(Path(args.config))
+    symbols = tuple(args.symbols or m.symbols)
+    frames, synthetic = _load_frames(args, symbols)
+    instruments = _instruments(args, symbols, synthetic)
+    entries = []
+    for s, f in frames.items():
+        holdout = ensure_utc(default_epoch(f["open_time"][-1], cfg.holdout.months, None).start)
+        entries += journal_from_backtest(ls.cls, f.filter(pl.col("open_time") < holdout), s, instruments[s])
+    stats = by_regime(entries)
+    print(f"{len(entries)} trades on the research data")
+    for st in stats:
+        print(
+            f"  {st.regime:12} {st.n:4} signals  win {st.win_rate:5.1%}  avg {st.avg_r:+.3f}R"
+            f"  (rest {st.rest_avg_r:+.3f}R)"
+        )
+    print(finding(stats))
+    skip = [st.regime for st in blocked(stats)]
+    if not skip:
+        return 0
+    taken = [v.key[1] for v in _registry()[0].versions() if v.key[0] == m.id]
+    version = next_version(m.version, [*taken, m.version])
+    cls = regime_filtered(ls.cls, skip, version)
+    print(
+        f"proposed {m.id} {version}: skips {', '.join(skip)} "
+        "(better in sample by construction; only validation counts)"
+    )
+    if not args.validate:
+        return 0
+    filtered = LoadedStrategy(cls, cls.manifest, ls.code_hash, ls.path)
+    universe = tuple(dict.fromkeys([*symbols, *(args.universe or [])]))
+    rep, _stem = _validate_and_report(args, settings, filtered, cfg, cfg_hash, universe, frames, synthetic)
+    if rep.passed and args.challenger:
+        _learned_challenger(m.id, m.version, "learning_regime", {"regime_skip": ",".join(skip)})
+    return 0 if rep.passed else 1
+
+
 def _meta_challenger(strategy_id: str, version: str, model_id: str) -> None:
-    """Register the meta-filtered version in shadow as the plain version's challenger (lifecycle decides)."""
+    _learned_challenger(strategy_id, version, "learning_meta", {"meta_model": model_id})
+
+
+def _learned_challenger(strategy_id: str, version: str, origin: Origin, extra: dict[str, str]) -> None:
+    """Register a learned version in shadow as the plain version's challenger (the lifecycle decides)."""
     reg, _ = _registry()
     try:
         parent = reg.get(strategy_id, version)
@@ -246,17 +293,17 @@ def _meta_challenger(strategy_id: str, version: str, model_id: str) -> None:
             strategy_id=strategy_id,
             version=new,
             family=parent.info.family,
-            origin="learning_meta",
+            origin=origin,
             demo_only=parent.info.demo_only,
             code_hash=parent.info.code_hash,
-            params={**parent.info.params, "meta_model": model_id},
+            params={**parent.info.params, **extra},
             parent_version=version,
             created_by="learning",
         ),
         parent.profile.model_copy(update={"strategy_version": new}) if parent.profile is not None else None,
     )
     stage = reg.promote_candidate(strategy_id, new, validation_passed=True, synthetic=False)
-    print(f"challenger {strategy_id} {new} (meta filter {model_id}) registered: {stage.to_stage.value}")
+    print(f"challenger {strategy_id} {new} ({origin}, {extra}) registered: {stage.to_stage.value}")
 
 
 def _learn_reopt(args: argparse.Namespace) -> int:
@@ -678,6 +725,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--challenger", action="store_true", help="if it passes: register the filtered version in shadow"
     )
     me.set_defaults(func=_learn_meta)
+    rg = le.add_parser("regime", help="L4: results by daily regime; a regime filter proposed and validated")
+    rg.add_argument("strategy")
+    _add_data_args(rg)
+    rg.add_argument("--symbols", nargs="*", help="markets to learn from (default: the manifest's)")
+    rg.add_argument("--universe", nargs="*", help="extra symbols for cross-market validation")
+    rg.add_argument("--config", default="config/validation.yaml")
+    rg.add_argument("--epoch", default=None, help="holdout epoch id")
+    rg.add_argument("--out", default=None)
+    rg.add_argument("--validate", action="store_true", help="run full validation on the proposed filter")
+    rg.add_argument("--challenger", action="store_true", help="if it passes: register it in shadow")
+    rg.set_defaults(func=_learn_regime)
 
     rk = sub.add_parser("risk", help="owner-side risk tools").add_subparsers(dest="risk_cmd", required=True)
     kg = rk.add_parser("keygen", help="create the owner Ed25519 key pair (run on the owner's machine)")

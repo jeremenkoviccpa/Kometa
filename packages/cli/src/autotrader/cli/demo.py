@@ -78,9 +78,12 @@ from autotrader.execution.quotes import QuoteBook
 from autotrader.execution.reconcile import Reconciler
 from autotrader.execution.service import ExecutionService, startup_checks
 from autotrader.execution.watchdog import Watchdog
-from autotrader.learning.journal import JournalService
+from autotrader.learning.features import snapshot
+from autotrader.learning.journal import JournalService, bars_array
 from autotrader.learning.lessons import LessonBook, LessonService, diagnose
 from autotrader.learning.metafilter import ModelIntegrityError, load_model, meta_filtered, model_records
+from autotrader.learning.regime import regime as regime_of
+from autotrader.learning.regime import summary as regime_summary
 from autotrader.lifecycle.config import load_promotion_config
 from autotrader.lifecycle.evaluator import Evaluator, MemoryStageData
 from autotrader.lifecycle.registry import Registry, VersionInfo
@@ -138,7 +141,11 @@ LOOPS = [
         "status": "running",
         "what": "at learn meta trains; passed models run as filtered versions in shadow",
     },
-    {"loop": "L4 Regime", "status": "not built", "what": "trending/ranging/volatile days per strategy"},
+    {
+        "loop": "L4 Regime",
+        "status": "running",
+        "what": "daily trend and volatility regime; at learn regime proposes filters",
+    },
     {"loop": "L5 Allocation", "status": "running", "what": "risk budget by live results (live stages only)"},
     {
         "loop": "L6 Failure lessons",
@@ -334,6 +341,19 @@ class DemoStack:
             out.setdefault(v.info.strategy_id, []).append(v.info.version)
         return out
 
+    def regime_now(self) -> dict[str, Any]:
+        """Today's regime for each market, from the journal's closed daily bars."""
+        out: dict[str, Any] = {}
+        if self.journal is None:
+            return out
+        for (sym, tf), rows in self.journal.bars.items():
+            if tf != Timeframe.D1 or not rows:
+                continue
+            f = snapshot({Timeframe.D1: bars_array(list(rows))}, self.clock.now(), spread=0.0)
+            trend, vol = regime_of(f)
+            out[sym] = {"trend": trend, "vol": vol, "efficiency": f.efficiency_d1, "atr_pct": f.atr_pct_d1}
+        return out
+
     def learning_view(self) -> dict[str, Any]:
         """The journal plus where each learning loop of spec section 14 stands in this build."""
         j = (
@@ -349,6 +369,8 @@ class DemoStack:
         return {
             **j,
             "diagnosis": {k: diagnose(v).model_dump(mode="json") for k, v in sorted(by.items())},
+            "regimes": {k: regime_summary(v) for k, v in sorted(by.items())},
+            "regime_now": self.regime_now(),
             "lessons": [x.model_dump(mode="json") for x in lessons],
             "challengers": [
                 {

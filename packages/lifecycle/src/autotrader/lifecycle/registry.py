@@ -34,8 +34,8 @@ from autotrader.core.ledger import Ledger
 from autotrader.core.models import Frozen, Stage, UtcDatetime
 from autotrader.core.profile import BacktestProfile
 
-Origin = Literal["trader", "research_agent", "owner", "learning_reopt", "learning_meta"]  # as the manifest
-LEARNED = frozenset({"learning_reopt", "learning_meta"})  # challengers learning made of a champion
+Origin = Literal["trader", "research_agent", "owner", "learning_reopt", "learning_meta", "learning_regime"]
+LEARNED = frozenset({"learning_reopt", "learning_meta", "learning_regime"})  # learned challengers
 Actor = Literal["evaluator", "validation", "owner", "learning"]
 # the owner's paper-trading switch (read by learning: switching off is a choice, not a failure)
 PAPER_ON, PAPER_OFF = "owner: paper trading", "owner: back to shadow"

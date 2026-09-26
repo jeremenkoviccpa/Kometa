@@ -45,6 +45,9 @@ class FeatureSnapshot(BaseModel):
     session: tuple[str, ...]
     hour: int
     weekday: int
+    # the daily regime (L4), from closed daily bars only; defaults keep journals written before them readable
+    efficiency_d1: float | None = None  # Kaufman efficiency ratio of the last 20 daily closes, 0..1
+    atr_pct_d1: float | None = None  # where the daily ATR sits in its last 100 values, 0..1
 
     def row(self) -> dict[str, float]:
         """Numbers only, for models (missing = NaN; sessions one-hot)."""
@@ -112,6 +115,14 @@ def snapshot(
         vol = _finite(float(np.std(r)) * math.sqrt(288))
         med = float(np.median((m5.ask_c - m5.bid_c)[-288:]))
         ratio = spread / med if med > 0 else None
+    eff = atr_pct_d = None
+    d1 = b.get(Timeframe.D1)
+    if d1 is not None and len(d1) >= 21:
+        c = d1.bid_c[-21:]
+        path = float(np.abs(np.diff(c)).sum())
+        eff = abs(float(c[-1] - c[0])) / path if path > 0 else None
+        a_d1 = atr(d1.bid_h, d1.bid_l, d1.bid_c, 14)
+        atr_pct_d = last(percentile_rank(a_d1, 100)) if a_d1.size >= 100 else None
     mte = None
     if events is not None and currencies is not None:
         mins = [m for c in currencies if (m := events.minutes_to_next(now, c)) is not None]
@@ -129,4 +140,6 @@ def snapshot(
         session=sessions_of(now),
         hour=now.hour,
         weekday=now.weekday(),
+        efficiency_d1=eff,
+        atr_pct_d1=atr_pct_d,
     )

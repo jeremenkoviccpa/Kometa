@@ -22,6 +22,7 @@ from autotrader.core.bus import STAGES, Handler
 from autotrader.core.events import StageChanged
 from autotrader.core.models import Stage
 from autotrader.learning.journal import JournalEntry
+from autotrader.learning.regime import labels as regime_labels
 from autotrader.lifecycle.registry import PAPER_OFF, PAPER_ON
 
 LESSON_NS = uuid.UUID("6f1d2c1e-4c7b-5e0a-9a51-4c2f5d7a8b10")
@@ -109,6 +110,7 @@ def _conditions(e: JournalEntry) -> list[str]:
     )
     if f.spread_ratio is not None:
         out.append("with the spread over 1.5x its median" if f.spread_ratio > 1.5 else "with a normal spread")
+    out += [f"in a {x} market" for x in regime_labels(f)]
     if f.minutes_to_event is not None:
         out.append("within an hour of high-impact news" if f.minutes_to_event <= 60 else "with no news near")
     return out

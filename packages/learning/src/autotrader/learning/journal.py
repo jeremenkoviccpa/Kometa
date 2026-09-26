@@ -87,7 +87,7 @@ class JournalEntry(BaseModel):
     trade_r: float | None = None  # the real trade's R, when it was taken
 
 
-def _arrays(rows: Sequence[dict[str, float | int]]) -> BarsArray:
+def bars_array(rows: Sequence[dict[str, float | int]]) -> BarsArray:
     cols = {k: np.array([r[k] for r in rows]) for k in rows[0]} if rows else {}
     if not rows:
         empty_i = np.array([], dtype=np.int64)
@@ -296,7 +296,7 @@ class JournalService:
             entry = float(q.ask if s.side == "buy" else q.bid) if q is not None else s.stop_price
         idx = self.events() if self.events is not None else None
         feats = snapshot(
-            {tf: _arrays(list(self.bars[(s.symbol, tf)])) for tf in KEEP},
+            {tf: bars_array(list(self.bars[(s.symbol, tf)])) for tf in KEEP},
             s.created_at,
             spread=spread,
             currencies=(s.symbol[:3], s.symbol[3:]) if len(s.symbol) == 6 else None,

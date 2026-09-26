@@ -147,3 +147,10 @@ purged 5-fold cross-validation, out of sample.
 Reading: the filter passes the spec's gate (better on both counts) and roughly halves the loss per signal,
 but the strategy still loses after it. Not a reason to trade it; a sign the journal's features carry some
 information about which breakouts fail, worth rechecking once the strategy itself has an edge.
+
+## 2026-09-27 Regimes: scalp_session_breakout on real gold 2017-2022
+
+`at learn regime` (research data, holdout cut): 961 trades. By daily regime: trending 233 signals -0.142R,
+ranging 477 -0.096R, mixed 239 -0.068R; high vol 198 -0.082R, normal 462 -0.107R, low vol 251 -0.087R.
+Reading: it loses everywhere; no regime is bad enough against the rest (0.3R gap) to justify a filter, and
+a filter on a strategy that loses in every regime would only fit noise. No filter proposed.
