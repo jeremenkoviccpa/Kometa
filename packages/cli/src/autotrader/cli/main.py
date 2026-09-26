@@ -573,7 +573,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--equity",
         type=float,
         default=50_000.0,
-        help="starting balance (sim); gold at minimum size needs about 25k at the 0.1%% paper-stage risk",
+        help="starting balance (sim); gold swing stops at the 0.01 lot minimum need about 250k at the "
+        "0.1%% paper-stage risk (the gate never rounds up)",
     )
     dr.add_argument("--port", type=int, default=8000)
     dr.add_argument(
