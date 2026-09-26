@@ -98,3 +98,22 @@ Reading: the method as specified is extremely selective on gold (about 2 setups 
 and the tight pullback-low stop is hit in almost every one: price revisits below the retest low before
 reaching the target. Not an edge on this evidence, and far too few trades to validate. Nothing was tuned on
 these results.
+
+## 2026-09-26 smc_sniper 2.0.0: five variants declared before running (scripts/sniper_variants.py)
+
+Owner's ask: more profitable, more frequent. Variants chosen from the diagnosis above (13 of 14 setups hit
+the tight stop), declared before any was run, all recorded as trials (kind research). Real gold 2017-2023.
+
+| Variant | Trades | Win | Avg R | Total R |
+|---|---|---|---|---|
+| A current | 1 | 0% | -1.075 | -1.1 |
+| B stop at the sweep low, stop cap at its maximum (2x H1 ATR) | 0 | - | - | 0 |
+| C buffer 1.0 M5 ATR under the pullback low | 0 | - | - | 0 |
+| D 8 hours for the retest | 1 | 0% | -1.075 | -1.1 |
+| E trade WATCH too (score 70+, off-session 80+) | 5 | 0% | -1.071 | -5.4 |
+
+Reading: no variant helps. A wider stop pushes the nearest liquidity below 1:2, so the RR rule removes the
+setup (B, C); letting WATCH setups trade adds four losers in seven years (E). The method as specified does
+not produce an edge or a useful trade count on gold, and tuning its parameters cannot change that: the
+limit is the number of setups the rules allow, not their settings. The owner's 1-2% a day target was
+declined as a goal (1% a day compounds to about 1,100% a year; the signed limits halt at a 2% daily loss).

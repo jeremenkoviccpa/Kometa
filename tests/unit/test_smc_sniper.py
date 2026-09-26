@@ -185,3 +185,11 @@ def test_liquidity_is_untaken_swing_highs_and_equal_highs_pool(smc: ModuleType) 
     assert 103.0 in liq and liq.count(103.05) == 2  # the swing itself and the equal-highs pool
     bars.append((100.0, 103.5, 99.5, 101.0))  # price trades through both: the liquidity is taken
     assert smc.liquidity_above(_cols(bars)) == []
+
+
+def test_the_stop_defaults_to_the_pullback_low_and_the_sweep_low_is_the_other_choice() -> None:
+    m = load_strategy(ROOT / "strategies" / "library" / "smc_sniper").manifest
+    assert m.param_values()["stop_at"] == "pullback"
+    assert m.param_values({"stop_at": "sweep"})["stop_at"] == "sweep"
+    src = (ROOT / "strategies" / "library" / "smc_sniper" / "strategy.py").read_text()
+    assert 'if p["stop_at"] == "pullback" else sweep' in src  # the only two stops the owner's spec allows

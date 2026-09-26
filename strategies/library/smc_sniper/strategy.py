@@ -20,10 +20,10 @@ Hard rules (each one missing = NO TRADE):
    inside of that M15 move; the trigger is the FIRST M5 pullback to the breakout area (the level the M15 BOS
    broke, within 0.1 M15 ATR) that closes up above it (the rejection), while no M5 close since the break
    has gone more than that below it. Never the second retest, never chasing.
-6. RISK: stop below the relevant swing low, the retest's pullback low (the higher low whose loss would undo
-   the shift), + `stop_buffer_atr` x M5 ATR, and at most `max_sl_atr` x H1 ATR away (never widened to
-   survive). Target: the nearest liquidity above, before any obstacle; RR >= `min_rr` (2). Spread at most
-   `max_spread_r` of the risk. Size is the risk gate's (the owner's cap: 1%).
+6. RISK: stop below the relevant swing low (`stop_at`): the retest's pullback low (the higher low whose loss
+   would undo the shift) or the liquidity sweep low, + `stop_buffer_atr` x M5 ATR, and at most `max_sl_atr` x
+   H1 ATR away (never widened to survive). Target: the nearest liquidity above, before any obstacle;
+   RR >= `min_rr` (2). Spread at most `max_spread_r` of the risk. Size is the risk gate's (owner's cap: 1%).
 7. NEWS: no entry within `news_min` minutes of a scheduled high-impact event in either currency.
 
 SNIPER SCORE (the owner's weights, which sum to 95 as written; the owner has been told): D1 bias 5, H4 bias
@@ -386,8 +386,9 @@ class SmcSniper(Strategy):
         entry = -float(m5.bid_c[-1]) if sell else float(m5.ask_c[-1])
         sweep = float(hunt["sweep"])
         atr5 = _atr(x)[-1]
-        pullback_low = min(x[2][brk + 1 :])  # the higher low of the retest: the structure's invalidation
-        stop = pullback_low - float(p["stop_buffer_atr"]) * atr5 - (spread if sell else 0.0)
+        # the owner allows either: the retest's pullback low (the higher low) or the liquidity sweep low
+        base = min(x[2][brk + 1 :]) if p["stop_at"] == "pullback" else sweep
+        stop = base - float(p["stop_buffer_atr"]) * atr5 - (spread if sell else 0.0)
         risk = entry - stop
         if not 0 < risk <= float(p["max_sl_atr"]) * float(c["h1_atr"]):
             return []  # 6: stop too wide (never widened to survive)
