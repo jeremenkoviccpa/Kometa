@@ -200,3 +200,13 @@ def test_no_rollback_after_4_weeks(tmp_path: Path) -> None:
     ev = h.reg.transition("s1", "1.0.1", Stage.MICRO, "drawdown", actor="evaluator")
     assert h.ev._maybe_rollback(ev) == []
     assert (h.stage("1.0.0"), h.stage("1.0.1")) == (Stage.SHADOW, Stage.MICRO)
+
+
+def test_no_swap_tests_or_swaps_while_learning_is_paused(tmp_path: Path) -> None:
+    h = H(tmp_path)
+    race(h, BASE, BETTER)
+    h.ev.learning_paused = lambda loop: "learning frozen by the owner"
+    assert h.ev.review_challengers() == [] and h.reg.swap_tests == []
+    assert (h.stage("1.0.1"), h.stage("1.0.0")) == (Stage.SHADOW, Stage.LIVE)
+    h.ev.learning_paused = lambda loop: None  # control
+    assert h.ev.review_challengers() and h.stage("1.0.1") == Stage.LIVE

@@ -283,6 +283,7 @@ class LessonService:
         entries: Callable[[], Sequence[JournalEntry]],
         families: Mapping[str, str],
         params: Mapping[str, Mapping[str, Any]] | None = None,
+        paused: Callable[[str], str | None] | None = None,
     ) -> None:
         self.book, self.entries, self.families, self.params = (
             book,
@@ -290,12 +291,13 @@ class LessonService:
             dict(families),
             dict(params or {}),
         )
+        self.paused = paused  # the owner's freeze stops L6 too (spec 14.9)
 
     def handlers(self) -> Mapping[str, Handler]:
         return {STAGES: self._on_stage}
 
     async def _on_stage(self, msg: Any) -> None:
-        if isinstance(msg, StageChanged):
+        if isinstance(msg, StageChanged) and (self.paused is None or self.paused("L6") is None):
             x = lesson_from_stage(
                 msg, self.families.get(msg.strategy_id, ""), self.entries(), self.params.get(msg.strategy_id)
             )

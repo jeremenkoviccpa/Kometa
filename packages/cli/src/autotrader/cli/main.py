@@ -37,11 +37,14 @@ from autotrader.engine.backtest import BacktestConfig, run_backtest
 from autotrader.execution.adapter import BrokerAdapter, BrokerUnavailableError
 from autotrader.execution.mt5 import MT5Adapter
 from autotrader.execution.service import StartupRefusedError, startup_checks
+from autotrader.learning.guard import LearningGuard
 from autotrader.learning.history import journal_from_backtest
 from autotrader.learning.lessons import LessonBook, lesson_from_validation
 from autotrader.learning.meta import train_and_register
+from autotrader.learning.metafilter import model_records
 from autotrader.learning.regime import blocked, by_regime, finding, regime_filtered
 from autotrader.learning.reopt import challenger_class, fit_recent, next_version, step_params
+from autotrader.learning.report import markdown, weekly_report
 from autotrader.lifecycle.registry import IllegalTransitionError, Origin, Registry, VersionInfo
 from autotrader.risk.config import ConfigSignatureError, RiskLimits, load_signed
 from autotrader.strategies_api.loader import LoadedStrategy, StrategyLoadError, load_strategy
@@ -198,9 +201,38 @@ def _validate_and_report(
     return rep, stem
 
 
+def _frozen() -> bool:
+    """Spec 14.9: the owner's learning freeze stops every loop, the offline commands too."""
+    path = Settings().learning_freeze_path
+    if path.exists():
+        print(f"learning is frozen ({path} exists): nothing learned, nothing registered")
+        return True
+    return False
+
+
+def _learn_report(args: argparse.Namespace) -> int:
+    """The weekly learning report from the offline records (registry, lessons, models, trials)."""
+    settings = Settings()
+    reg, _ = _registry()
+    guard = LearningGuard(settings.learning_freeze_path)
+    r = weekly_report(
+        datetime.now(UTC),
+        stage_records=[h for v in reg.versions() for h in v.history],
+        swap_tests=reg.swap_tests,
+        lessons=LessonBook(settings.lessons_path).lessons.values(),
+        models=model_records(settings.models_dir),
+        trials=TrialRegistry(JsonlLedger(settings.ledger_path)).trials(),
+        guard=guard.view(),
+    )
+    print(markdown(r))
+    return 0
+
+
 def _learn_meta(args: argparse.Namespace) -> int:
     """L3: a historical journal from backtests on the research data (the holdout is cut off here), purged
     cross-validation, the out-of-sample gate, and the model in the registry."""
+    if _frozen():
+        return 3
     settings = Settings()
     ls = load_strategy(Path(args.strategy))
     m = ls.manifest
@@ -235,6 +267,8 @@ def _learn_meta(args: argparse.Namespace) -> int:
 def _learn_regime(args: argparse.Namespace) -> int:
     """L4: the strategy's results by daily regime on the research data; a filter for the regimes it does badly
     in, as a new version that must pass full validation before it may enter shadow."""
+    if _frozen():
+        return 3
     settings = Settings()
     ls = load_strategy(Path(args.strategy))
     m = ls.manifest
@@ -308,6 +342,8 @@ def _learned_challenger(strategy_id: str, version: str, origin: Origin, extra: d
 
 def _learn_reopt(args: argparse.Namespace) -> int:
     """L2: fit on the recent window, step toward it, validate the challenger, register it in shadow."""
+    if _frozen():
+        return 3
     settings = Settings()
     ls = load_strategy(Path(args.strategy))
     m = ls.manifest
@@ -736,6 +772,8 @@ def build_parser() -> argparse.ArgumentParser:
     rg.add_argument("--validate", action="store_true", help="run full validation on the proposed filter")
     rg.add_argument("--challenger", action="store_true", help="if it passes: register it in shadow")
     rg.set_defaults(func=_learn_regime)
+    rp = le.add_parser("report", help="the weekly learning report (spec 14.9) from the offline records")
+    rp.set_defaults(func=_learn_report)
 
     rk = sub.add_parser("risk", help="owner-side risk tools").add_subparsers(dest="risk_cmd", required=True)
     kg = rk.add_parser("keygen", help="create the owner Ed25519 key pair (run on the owner's machine)")

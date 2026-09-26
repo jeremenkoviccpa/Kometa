@@ -19,7 +19,7 @@ Demotion rules (money stages; trades since the version last entered micro from s
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -127,7 +127,10 @@ class Evaluator:
         clock: Clock,
         alerts: AlertSink,
         actions: DemotionActions | None = None,
+        learning_paused: Callable[[str], str | None] | None = None,
     ) -> None:
+        """`learning_paused(loop)`: why a learning loop may not act now (spec 14.9), or None."""
+        self.learning_paused = learning_paused
         self.reg = registry
         self.cfg = config
         self.data = data
@@ -149,6 +152,8 @@ class Evaluator:
     def review_challengers(self) -> list[StageChanged]:
         """Every re-optimized challenger in shadow against its champion in a money stage: the swap test on
         R per closed trade since the challenger entered shadow. Each test is recorded; a win swaps."""
+        if self.learning_paused is not None and self.learning_paused("L2") is not None:
+            return []  # frozen, or paused in a drawdown: no swap tests, no swaps (trading is untouched)
         now = self.clock.now()
         out: list[StageChanged] = []
         shadow = [

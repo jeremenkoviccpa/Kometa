@@ -431,3 +431,18 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
 - First run, the scalper on real gold 2017-2022: it loses in every regime (-0.07 to -0.14R per signal), no
   regime stands out, no filter proposed.
 - The hub's Learning tab shows today's regime per market and each strategy's results by regime.
+
+## 2026-09-27 Phase 9, slice 8a: learning safety switches and the weekly report
+
+- `learning.guard.LearningGuard`: the owner's freeze file stops every learning loop (the challenger swap
+  review, lesson writing, and the offline `at learn` commands refuse) without touching trading; a drawdown
+  above 8% pauses L1-L4 until equity is back within 4% of its peak, the pause and its reason persisted as it
+  takes effect (an unreadable state file means paused, to be safe). The demo feeds it the monitor's drawdown
+  every minute and keeps the freeze file and the state next to the state directory, so the hub's Pause
+  learning button now actually pauses and survives a restart (it used to write a file nothing read, in the
+  directory a fresh start wipes).
+- `learning.report.weekly_report` counts, from the records, the last seven days: promotions, demotions,
+  swaps and swap tests, rollbacks, retirements, lessons, meta models trained and passed, journaled signals and
+  outcomes, API calls (the spec's "API cost": calls are what Kometa knows; billing is Anthropic's). Trials carry
+  no run time, so "variants tried" is every recorded trial, and the report says so. The demo sends it weekly
+  (market time) as an alert and shows it on the Learning tab; `at learn report` prints it offline.

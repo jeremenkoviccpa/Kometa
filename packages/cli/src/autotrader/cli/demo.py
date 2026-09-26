@@ -79,11 +79,13 @@ from autotrader.execution.reconcile import Reconciler
 from autotrader.execution.service import ExecutionService, startup_checks
 from autotrader.execution.watchdog import Watchdog
 from autotrader.learning.features import snapshot
+from autotrader.learning.guard import LearningGuard
 from autotrader.learning.journal import JournalService, bars_array
 from autotrader.learning.lessons import LessonBook, LessonService, diagnose
 from autotrader.learning.metafilter import ModelIntegrityError, load_model, meta_filtered, model_records
 from autotrader.learning.regime import regime as regime_of
 from autotrader.learning.regime import summary as regime_summary
+from autotrader.learning.report import markdown, weekly_report
 from autotrader.lifecycle.config import load_promotion_config
 from autotrader.lifecycle.evaluator import Evaluator, MemoryStageData
 from autotrader.lifecycle.registry import Registry, VersionInfo
@@ -130,6 +132,12 @@ LOOPS = [
         "status": "running",
         "what": "every signal, its market snapshot and outcome",
     },
+    {
+        "loop": "Safety switches",
+        "status": "running",
+        "what": "owner freeze; L1-L4 pause above an 8% drawdown",
+    },
+    {"loop": "Weekly report", "status": "running", "what": "what learning did each week, sent as an alert"},
     {"loop": "L1 Discovery", "status": "not built", "what": "Claude research agents propose new strategies"},
     {
         "loop": "L2 Re-optimization",
@@ -210,6 +218,7 @@ class DemoStack:
     journal: JournalService | None = None  # every signal, its market snapshot and its outcome
     lessons: LessonBook | None = None  # L6: a lesson on every demotion, retirement, failed validation
     assistant: Assistant | None = None  # the owner's strategy assistant (write, check, save, modify)
+    guard: LearningGuard = field(default_factory=lambda: LearningGuard(Path("var/learning.freeze")))
 
     def catalog(self) -> list[dict[str, Any]]:
         """Every strategy the demo can run, with its stage in the demo's registry."""
@@ -316,7 +325,7 @@ class DemoStack:
             clock=self.clock,
             registry=self.registry,
             owner_token=owner_token,
-            learning_freeze_path=self.cfg.var / "learning.freeze",
+            learning_freeze_path=self.guard.freeze_path,
             contract_size=self.contract,
             quote_ccy=self.quote_ccy,
             info=self.info,
@@ -354,6 +363,20 @@ class DemoStack:
             out[sym] = {"trend": trend, "vol": vol, "efficiency": f.efficiency_d1, "atr_pct": f.atr_pct_d1}
         return out
 
+    def learning_report(self) -> dict[str, Any]:
+        """The weekly learning report (spec 14.9) for the last seven market days."""
+        return weekly_report(
+            self.clock.now(),
+            stage_records=[h for v in self.registry.versions() for h in v.history],
+            swap_tests=self.registry.swap_tests,
+            lessons=self.lessons.lessons.values() if self.lessons is not None else [],
+            models=model_records(self.cfg.root / "models" / "meta"),
+            journal=self.journal.entries.values() if self.journal is not None else [],
+            api_calls=(self.ai.view()["calls_last_24h"] if self.ai is not None else 0)
+            + (self.assistant.status()["calls_today"] if self.assistant is not None else 0),
+            guard=self.guard.view(),
+        )
+
     def learning_view(self) -> dict[str, Any]:
         """The journal plus where each learning loop of spec section 14 stands in this build."""
         j = (
@@ -371,6 +394,8 @@ class DemoStack:
             "diagnosis": {k: diagnose(v).model_dump(mode="json") for k, v in sorted(by.items())},
             "regimes": {k: regime_summary(v) for k, v in sorted(by.items())},
             "regime_now": self.regime_now(),
+            "report": self.learning_report(),
+            "guard": self.guard.view(),
             "lessons": [x.model_dump(mode="json") for x in lessons],
             "challengers": [
                 {
@@ -794,7 +819,16 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         if choice_key(ls) in trade:  # a meta-filtered version starts in shadow unless switched on itself
             registry.paper_trade(m.id, m.version)
     data = MemoryStageData()
-    ev = Evaluator(registry, load_promotion_config(root / "config" / "promotion.yaml"), data, clock, router)
+    # spec 14.9: the owner's freeze and the drawdown pause, next to the state (a fresh start keeps them)
+    guard = LearningGuard(cfg.var.parent / "learning.freeze", cfg.var.parent / "learning_guard.json")
+    ev = Evaluator(
+        registry,
+        load_promotion_config(root / "config" / "promotion.yaml"),
+        data,
+        clock,
+        router,
+        learning_paused=guard.paused,
+    )
     lifecycle = LifecycleService(registry, ev, data, bus, clock)
 
     acfg = load_allocator_config(root / "config" / "allocator.yaml", root / "config" / "promotion.yaml")
@@ -860,6 +894,7 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         quote_ccy={s: instruments[s].quote for s in symbols},
     )
     stack.services = [lifecycle, risk, allocator, execution, engine, monitor, AuditService(audit)]
+    stack.guard = guard
     key = settings.anthropic_api_key
     stack.assistant = Assistant(
         root,
@@ -882,6 +917,7 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
             lambda: list(journal.entries.values()),
             {ls.manifest.id: ls.manifest.family for ls in strategies},
             {ls.manifest.id: dict(ls.manifest.param_values({})) for ls in strategies},
+            paused=guard.paused,
         )
     )
     if ai is not None:
@@ -953,6 +989,12 @@ class Scheduler:
             self.rollover_day = day_key
             await s.risk.roll_day(new_week=local.weekday() == 4)
             s.monitor.daily_summary(now)
+        acct, peak = s.monitor.state.account, s.monitor.state.peak_equity
+        if acct is not None and peak:
+            s.guard.update(float((peak - acct.equity) / peak), now)  # the drawdown pause (spec 14.9)
+        if self.due("weekly_learning", timedelta(days=7), now) and self.last.get("hourly") is not None:
+            text = markdown(s.learning_report())
+            s.router.send(Alert(severity=Severity.INFO, kind="learning_report", message=text, at=now))
         if self.due("hourly", timedelta(hours=1), now):
             await s.lifecycle.hourly()
             check_chain(s.audit, s.router, now)

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     reports_dir: Path = Path("reports")
     lessons_path: Path = Path("var/lessons.jsonl")  # L6 failure lessons (learning)
     models_dir: Path = Path("var/models")  # L3 meta models and their registry (learning)
+    learning_freeze_path: Path = Path("var/learning.freeze")  # the owner's learning freeze (spec 14.9)
     execution_journal_path: Path = Path("var/execution_journal.json")
     execution_quality_path: Path = Path("var/execution_quality.jsonl")  # until Postgres runs
 
@@ -62,7 +63,6 @@ class Settings(BaseSettings):
 
     api_owner_token: SecretStr | None = None  # control endpoints are disabled without it
     audit_path: Path = Path("var/audit.jsonl")  # dev/CI; Postgres audit_log in production
-    learning_freeze_path: Path = Path("var/learning.freeze")  # present = all learning loops paused
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

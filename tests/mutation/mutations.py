@@ -32,6 +32,9 @@ METAF = "packages/learning/src/autotrader/learning/metafilter.py"
 METAF_T = "tests/unit/test_metafilter.py"
 REGIME = "packages/learning/src/autotrader/learning/regime.py"
 REGIME_T = "tests/unit/test_regime.py"
+GUARD = "packages/learning/src/autotrader/learning/guard.py"
+GUARD_T = "tests/unit/test_learning_switches.py"
+EVAL = "packages/lifecycle/src/autotrader/lifecycle/evaluator.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -566,5 +569,26 @@ MUTATIONS: tuple[Mutation, ...] = (
         "                    if now & skip_set:\n",
         "                    if now:\n",
         (REGIME_T,),
+    ),
+    Mutation(
+        "learning: the owner's freeze is ignored",
+        GUARD,
+        "        if self.frozen_by_owner():\n",
+        "        if False:\n",
+        (GUARD_T,),
+    ),
+    Mutation(
+        "learning: the drawdown pause lifts before equity recovers",
+        GUARD,
+        "        elif self.dd_paused_since is not None and drawdown <= self.resume_dd:\n",
+        "        elif self.dd_paused_since is not None and drawdown <= self.pause_dd:\n",
+        (GUARD_T,),
+    ),
+    Mutation(
+        "lifecycle: challengers are swapped while learning is paused",
+        EVAL,
+        '        if self.learning_paused is not None and self.learning_paused("L2") is not None:\n',
+        "        if False:\n",
+        (SWAP_T,),
     ),
 )
