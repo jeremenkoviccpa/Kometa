@@ -45,6 +45,8 @@ Open the Vercel URL, paste the access token when asked (it stays in that browser
   https://kometa-production-11af.up.railway.app (simulated gold, `AT_DEMO_BROKER=sim`, `AT_DEMO_SPEED=60`).
   Deployed with `railway up` from a local checkout; to redeploy on every push, connect the GitHub repository in
   the Railway dashboard (service, Settings, Source).
+- After any change to the hub page: `uv run python scripts/build_web.py https://kometa-production-11af.up.railway.app`,
+  then `vercel deploy --prod --yes` inside `web/` (make check fails while web/index.html is stale).
 - Frontend: Vercel project `kometa`, https://kometa-roan.vercel.app, deployed from `web/` (`scripts/build_web.py`
   then `vercel deploy --prod` inside `web/`).
 - Access token: set on Railway as `AT_API_OWNER_TOKEN`; the owner's copy is in `secrets/hub_token.txt`

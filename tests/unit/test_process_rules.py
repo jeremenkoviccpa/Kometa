@@ -98,3 +98,13 @@ def test_config_loaders_hash_what_they_read() -> None:
         if "yaml.safe_load(" in text and "read_config(" not in text and rel not in YAML_NOT_CONFIG:
             offenders.append(rel)
     assert offenders == [], f"config read without core.configs.read_config: {offenders}"
+
+
+def test_the_vercel_frontend_is_the_current_hub() -> None:
+    """web/index.html is a copy of the hub page for Vercel; a stale copy hid every new screen once (2026-09-26).
+    Rebuild with `uv run python scripts/build_web.py <railway url>` and redeploy `web/` after changing the hub."""
+    web = ROOT / "web" / "index.html"
+    hub = ROOT / "packages" / "api" / "src" / "autotrader" / "api" / "dashboard.html"
+    assert not web.exists() or web.read_bytes() == hub.read_bytes(), (
+        "web/index.html is stale: run build_web.py"
+    )
