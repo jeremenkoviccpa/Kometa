@@ -14,6 +14,8 @@ OM = "packages/execution/src/autotrader/execution/order_manager.py"
 RC = "packages/execution/src/autotrader/execution/reconcile.py"
 GATE = "packages/risk/src/autotrader/risk/gate.py"
 SIGN = "packages/core/src/autotrader/core/signing.py"
+JOURNAL = "packages/learning/src/autotrader/learning/journal.py"
+JOURNAL_T = "tests/unit/test_journal.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -400,5 +402,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         'margin_mode="hedging" if _enum(tr.get("accountType", HEDGED)) == HEDGED else "netting",',
         'margin_mode="hedging",',
         (CTRADER_T,),
+    ),
+    Mutation(
+        "journal: stop and target in one bar counted as the target",
+        JOURNAL,
+        "    if stopped:  # first, also when both are in this bar\n",
+        "    if stopped and not hit:  # first, also when both are in this bar\n",
+        (JOURNAL_T,),
+    ),
+    Mutation(
+        "journal: bars before the signal count",
+        JOURNAL,
+        "    if e.outcome is not None or bar.open_time < e.created_at:\n",
+        "    if e.outcome is not None:\n",
+        (JOURNAL_T,),
     ),
 )

@@ -263,3 +263,19 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   including skips, refusals and errors, is logged (var/ai_decisions.jsonl) and shown in the hub.
 - smc_sniper 1.0.1 adds the sweep level to its signal tags so the judge's stop rule can be enforced.
 - Checked automatically: no package other than ai, research and learning imports an LLM client.
+
+## 2026-09-26 Phase 9, slice 1: trade journal and feature store
+
+- `autotrader.learning.journal.JournalService` records every signal the bus carries (money, paper, shadow, the
+  Claude tracks), the risk gate's verdict, the real trade's R, and follows every signal to its triple-barrier
+  outcome on M1 bars whether or not it was traded, so later loops also learn from rejected and shadow signals.
+  Stop and target in one M1 bar count as the stop (pessimistic); the horizon is by the strategy's timeframe
+  (M1-M15: 1 day, H1: 5 days, H4: 20 days, D1: 60 days), then the outcome is marked to market.
+- `autotrader.learning.features.snapshot` drops every bar that closes after the signal time itself, so a
+  caller cannot leak the future; the future-poisoning check runs on it (tests/unit/test_journal.py). Missing
+  history is None, never 0. The strategy's rolling win rate is stored on the entry, not in the snapshot.
+- Storage: JSONL in the demo's state directory (newest line per signal wins). SPEC-QUESTION: the spec's
+  `trade_journal` / `features` Postgres tables come with the loops that query them (slice 9.3+), migration then.
+- The CLI (demo process) may now import `learning` (ALLOWED widened): the journal runs inside `at demo run`.
+- The hub gets a Learning tab: per-strategy outcomes, the latest signals with their market snapshot, and the
+  honest status of each of the eight loops (the old "Learning loops: running" label was false).

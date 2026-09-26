@@ -48,6 +48,7 @@ ALLOWED: dict[str, set[str]] = {
         "allocator",  # `at demo run` composes every service in one process (decisions.md, Phase 8)
         "api",
         "ai",
+        "learning",  # the trade journal runs inside the demo process (decisions.md, Phase 9)
     },
 }
 NEVER = {

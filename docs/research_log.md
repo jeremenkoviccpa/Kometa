@@ -56,3 +56,21 @@ Reading: the method, read literally, trades about once a year on gold M1: the fu
 almost never completes within the window. Nothing was loosened by hand; `disp_atr`, `window_m`, `max_sl_atr`,
 `stop_buffer_atr` and `liq_lookback` are the walk-forward search's to try. At this rate it cannot reach the
 200 out-of-sample trades validation needs on gold alone.
+
+## 2026-09-26 smc_sniper 1.0.2 vs smc_sniper_active 1.0.0, real gold 2017-2023
+
+Data: Dukascopy XAUUSD M1 bid/ask 2017-01-02 to 2023-12-29 (2,457,010 bars, data_version 3ba9fc25…); 2024 is
+kept out as the holdout year. `at backtest` defaults, full cost model. The active variant's four relaxations
+were chosen from the method before this run, not from its results. One look each; nothing tuned.
+
+| Strategy | Trades | Win | Avg R | Total R | PF | Max DD | Net | Spread cost |
+|---|---|---|---|---|---|---|---|---|
+| smc_sniper 1.0.2 (strict) | 5 | 40.0% | +0.747 | +3.7 | 2.10 | 1.7% | +1,968 | 543 |
+| smc_sniper_active 1.0.0 | 38 | 21.1% | +0.112 | +4.3 | 1.13 | 8.2% | +1,699 | 4,018 |
+
+Check first: smc_sniper 1.0.2 (switches at their defaults) reproduces 1.0.1's 2018 result exactly (1 trade,
+-1.07R), so the switches did not change the strict rules.
+
+Reading: both too rare to judge (validation needs 200 out-of-sample trades; the active variant makes about
+5 a year on gold). The active variant is near break-even after costs, which take about 0.3R a trade. More
+trades would need more markets (the method is not gold-specific) rather than looser rules.

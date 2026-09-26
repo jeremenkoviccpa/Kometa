@@ -231,6 +231,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <button data-v="trades">Trades</button>
     <button data-v="strategies">Strategies</button>
     <button data-v="research">Research</button>
+    <button data-v="learning">Learning</button>
     <button data-v="risk">Risk</button>
     <button data-v="execution">Execution</button>
     <button data-v="alerts">Alerts<span id="alertCount" class="count" hidden></span></button>
@@ -344,6 +345,14 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
   </section>
 
   <!-- RESEARCH -->
+  <section class="view" id="v-learning">
+    <div class="panel s12"><h2>What Kometa learns from <span class="help" data-h="Every signal is journaled with a snapshot of the market when it fired, and followed to its outcome on real prices: target first, stop first, or timed out. That includes signals the risk gate rejected and shadow ones, so later learning sees the misses too, not only the trades that happened. MAE / MFE: how far a signal went against you and in your favour, in R.">?</span><span class="right muted" id="journalState"></span></h2>
+      <p class="lead">Each signal a strategy makes becomes a lesson: the market when it fired, then where price went. Re-tuning and signal filtering learn from this journal, and they only ever produce new versions that must beat the old ones on unseen data.</p>
+      <div class="scroll" id="journalBy"></div></div>
+    <div class="panel s8"><h2>Latest signals and what happened</h2><div class="scroll" id="journalRecent" style="max-height:560px"></div></div>
+    <div class="panel s4"><h2>Learning loops <span class="help" data-h="The eight loops of the spec, and what exists of each in this build.">?</span></h2><div id="loops"></div></div>
+  </section>
+
   <section class="view" id="v-research">
     <div class="panel s12">
       <h2>How Kometa learns a strategy <span class="help" data-h="Learning here means fitting a strategy's few parameters to the past, then checking the fit on data the fitting never saw. Only the unseen results count.">?</span></h2>
@@ -615,7 +624,7 @@ function renderStatus(s) {
   lastPipe = {...s.pipeline};
   $("services").innerHTML = Object.entries(s.heartbeats).map(([k, age]) =>
     `<span class="chip ${age > 120 ? "stale" : ""}"><span class="dot"></span>${esc(k)} <span class="muted">${age < 60 ? Math.round(age) + "s" : Math.round(age / 60) + "m"}</span></span>`).join("") || `<span class="muted">no heartbeats yet</span>`;
-  $("learning").innerHTML = `Learning loops: <b>not built yet</b> (build phase 9). Trades already feed each strategy's track record and its stage.${s.learning_paused ? " Switch: <b>paused</b>" : ""} <button class="act" id="learnBtn">${s.learning_paused ? "Resume" : "Pause"} learning</button>`;
+  $("learning").innerHTML = `Learning: <b>journal running</b>, loops being built (phase 9, see Learning).${s.learning_paused ? " Switch: <b>paused</b>" : ""} <button class="act" id="learnBtn">${s.learning_paused ? "Resume" : "Pause"} learning</button>`;
   $("learnBtn").onclick = async () => { try { await post("/api/control/pause-learning", {paused: !s.learning_paused}); toast("learning " + (s.learning_paused ? "resumed" : "paused")); tick(); } catch (e) { toast(e.message); } };
   renderHealth(s);
   const sim = String(s.info.mode || "").startsWith("SIMULATED");
@@ -930,6 +939,22 @@ async function renderAi() {
     a.decisions || [], "no Claude decisions yet: switch on claude_smc_judge or claude_smc_free above");
 }
 
+async function renderLearning() {
+  const j = await get("/api/learning");
+  $("journalState").textContent = `${j.signals} signals journaled · ${j.resolved || 0} with an outcome · ${j.following || 0} being followed`;
+  $("journalBy").innerHTML = table([["Strategy", r => `<b>${esc(r.strategy)}</b>`], ["Signals", r => r.signals, "n"], ["Traded", r => r.traded, "n"],
+    ["Rejected", r => r.rejected, "n"], ["Outcome known", r => r.resolved, "n"],
+    ["Target first", r => `<span class="up">${r.target_first}</span>`, "n"], ["Stop first", r => `<span class="down">${r.stop_first}</span>`, "n"], ["Timed out", r => r.timed_out, "n"],
+    ["Avg R", r => r.avg_r == null ? "–" : `<span class="${cls(r.avg_r)}">${signed(r.avg_r)}</span>`, "n"],
+    ["Avg MAE / MFE (R)", r => r.avg_mae_r == null ? "–" : `${num(r.avg_mae_r)} / ${num(r.avg_mfe_r)}`, "n"]], j.by_strategy, "no signals yet: every strategy signal lands here");
+  const out = o => !o ? '<span class="muted">following…</span>' : o.label === 1 ? `<span class="tag open">target</span> ${signed(o.r)}R` : o.label === -1 ? `<span class="tag danger">stop</span> −1R` : `<span class="tag">timeout</span> ${signed(o.r)}R`;
+  const f = x => `ATR% ${x.atr_pct_h1 == null ? "–" : pct(x.atr_pct_h1, 0)} · trend H1/H4/D1 ${[x.slope_h1, x.slope_h4, x.slope_d1].map(v => v == null ? "–" : num(v)).join("/")} · level ${x.level_dist_atr == null ? "–" : num(x.level_dist_atr) + " ATR"} · ${(x.session || []).join("+") || "off-session"}`;
+  $("journalRecent").innerHTML = table([["When", r => stamp(r.created_at)], ["Strategy", r => esc(r.strategy_id)],
+    ["Signal", r => `${esc(r.side)} · ${esc(r.status)}${r.shadow ? " · shadow" : ""}`], ["Outcome", r => out(r.outcome)],
+    ["Market at the signal", r => `<span class="muted">${esc(f(r.features))}</span>`, "wrap"]], j.recent, "none yet");
+  $("loops").innerHTML = (j.loops || []).map(l => `<div class="row"><span><b>${esc(l.loop)}</b><div class="muted">${esc(l.what)}</div></span><span class="tag ${l.status === "running" ? "open" : ""}">${esc(l.status)}</span></div>`).join("");
+}
+
 async function renderStrategies() {
   renderCatalog().catch(() => {});
   renderAi().catch(() => {});
@@ -1146,6 +1171,7 @@ async function refreshView() {
     }
     else if (view === "trades") await renderTradesView();
     else if (view === "strategies") await renderStrategies();
+    else if (view === "learning") await renderLearning();
     else if (view === "research") await renderResearch();
     else if (view === "risk") { await renderRisk(); await renderNews(); }
     else if (view === "execution") await renderExecution();

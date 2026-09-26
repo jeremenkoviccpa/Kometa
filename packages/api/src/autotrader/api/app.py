@@ -99,6 +99,7 @@ def create_app(
     catalog: Callable[[], list[dict[str, Any]]] | None = None,
     paper_trade: Callable[[str, str, bool], Awaitable[str]] | None = None,
     ai: Callable[[], dict[str, Any]] | None = None,
+    learning: Callable[[], dict[str, Any]] | None = None,
     protect_reads: bool = False,
 ) -> FastAPI:
     """`protect_reads`: every /api and /research request needs the owner token (public hosting); the page
@@ -511,6 +512,15 @@ def create_app(
         """The owner's Claude tracks: switched on or not, the call budget, and every recent decision."""
         return (
             ai() if ai is not None else {"enabled": False, "disabled_reason": "not running", "decisions": []}
+        )
+
+    @app.get("/api/learning")
+    def get_learning() -> dict[str, Any]:
+        """The trade journal (each signal, its market snapshot and outcome) and the learning loops."""
+        return (
+            learning()
+            if learning is not None
+            else {"signals": 0, "by_strategy": [], "recent": [], "loops": []}
         )
 
     @app.get("/api/allocation")

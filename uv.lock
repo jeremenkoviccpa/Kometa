@@ -282,6 +282,7 @@ dependencies = [
     { name = "autotrader-data" },
     { name = "autotrader-engine" },
     { name = "autotrader-execution" },
+    { name = "autotrader-learning" },
     { name = "autotrader-lifecycle" },
     { name = "autotrader-monitor" },
     { name = "autotrader-risk" },
@@ -299,6 +300,7 @@ requires-dist = [
     { name = "autotrader-data", editable = "packages/data" },
     { name = "autotrader-engine", editable = "packages/engine" },
     { name = "autotrader-execution", editable = "packages/execution" },
+    { name = "autotrader-learning", editable = "packages/learning" },
     { name = "autotrader-lifecycle", editable = "packages/lifecycle" },
     { name = "autotrader-monitor", editable = "packages/monitor" },
     { name = "autotrader-risk", editable = "packages/risk" },
@@ -395,13 +397,19 @@ version = "0.1.0"
 source = { editable = "packages/learning" }
 dependencies = [
     { name = "autotrader-core" },
+    { name = "autotrader-engine" },
     { name = "autotrader-lifecycle" },
+    { name = "numpy" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "autotrader-core", editable = "packages/core" },
+    { name = "autotrader-engine", editable = "packages/engine" },
     { name = "autotrader-lifecycle", editable = "packages/lifecycle" },
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "pydantic", specifier = ">=2" },
 ]
 
 [[package]]

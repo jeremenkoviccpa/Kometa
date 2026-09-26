@@ -16,6 +16,7 @@ dependencies = [
     "autotrader-api",
     "autotrader-monitor",
     "autotrader-ai",
+    "autotrader-learning",
     "uvicorn>=0.30",
 ]
 
@@ -42,3 +43,4 @@ autotrader-allocator = { workspace = true }
 autotrader-api = { workspace = true }
 autotrader-monitor = { workspace = true }
 autotrader-ai = { workspace = true }
+autotrader-learning = { workspace = true }

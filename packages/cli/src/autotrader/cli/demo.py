@@ -72,6 +72,7 @@ from autotrader.execution.quotes import QuoteBook
 from autotrader.execution.reconcile import Reconciler
 from autotrader.execution.service import ExecutionService, startup_checks
 from autotrader.execution.watchdog import Watchdog
+from autotrader.learning.journal import JournalService
 from autotrader.lifecycle.config import load_promotion_config
 from autotrader.lifecycle.evaluator import Evaluator, MemoryStageData
 from autotrader.lifecycle.registry import Registry, VersionInfo
@@ -110,6 +111,35 @@ class DemoConfig:
     history_days: int = 260  # sim: bars played before the start only to warm strategies up (D1 needs ~160)
     trade: tuple[str, ...] | None = None  # strategies paper trading at start; None = the whole library
 
+
+# spec section 14: what exists of each learning loop in this build (shown in the hub, updated per slice)
+LOOPS = [
+    {
+        "loop": "Journal + features",
+        "status": "running",
+        "what": "every signal, its market snapshot and outcome",
+    },
+    {"loop": "L1 Discovery", "status": "not built", "what": "Claude research agents propose new strategies"},
+    {
+        "loop": "L2 Re-optimization",
+        "status": "not built",
+        "what": "re-tune parameters; challenger vs champion",
+    },
+    {
+        "loop": "L3 Meta-labeling",
+        "status": "not built",
+        "what": "learn which signals to skip (needs 300 signals)",
+    },
+    {"loop": "L4 Regime", "status": "not built", "what": "trending/ranging/volatile days per strategy"},
+    {"loop": "L5 Allocation", "status": "running", "what": "risk budget by live results (live stages only)"},
+    {
+        "loop": "L6 Failure lessons",
+        "status": "not built",
+        "what": "a lesson on every demotion or failed validation",
+    },
+    {"loop": "L7 Meta-learning", "status": "not built", "what": "which research sources produce survivors"},
+    {"loop": "L8 Cost calibration", "status": "not built", "what": "real spreads and slippage from fills"},
+]
 
 STYLE = {
     "swing_trend_pullback": "Swing",
@@ -162,6 +192,7 @@ class DemoStack:
     news_applied: bool = False  # the calendar feeds the risk gate's blackout (paper/live only)
     strategies: list[LoadedStrategy] = field(default_factory=list)
     ai: AiTraderService | None = None  # the owner's Claude tracks
+    journal: JournalService | None = None  # every signal, its market snapshot and its outcome
 
     def catalog(self) -> list[dict[str, Any]]:
         """Every strategy the demo can run, with its stage in the demo's registry."""
@@ -238,8 +269,18 @@ class DemoStack:
             catalog=self.catalog,
             paper_trade=self.paper_trade,
             ai=self.ai.view if self.ai is not None else None,
+            learning=self.learning_view,
             protect_reads=protect_reads,
         )
+
+    def learning_view(self) -> dict[str, Any]:
+        """The journal plus where each learning loop of spec section 14 stands in this build."""
+        j = (
+            self.journal.view()
+            if self.journal is not None
+            else {"signals": 0, "by_strategy": [], "recent": []}
+        )
+        return {**j, "loops": LOOPS}
 
     def _allocation(self) -> dict[str, Any]:
         cur = self.allocator.allocator.current
@@ -602,6 +643,10 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         quote_ccy={s: instruments[s].quote for s in symbols},
     )
     stack.services = [lifecycle, risk, allocator, execution, engine, monitor, AuditService(audit)]
+    stack.journal = JournalService(
+        clock, symbols, path=cfg.var / "journal.jsonl", history=history, events=news
+    )
+    stack.services.append(stack.journal)
     if ai is not None:
         stack.ai = ai
         stack.services.append(ai)
@@ -663,6 +708,8 @@ class Scheduler:
         await s.engine.on_time(now)
         if s.ai is not None:
             await s.ai.on_time(now)
+        if s.journal is not None:
+            await s.journal.on_time(now)
         local = now.astimezone(NY)
         day_key = local.date().isoformat()
         if local.hour >= 17 and self.rollover_day != day_key and local.weekday() < 5:
