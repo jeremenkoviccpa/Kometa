@@ -17,16 +17,15 @@ from autotrader.validation.poisoning import future_poisoning_test
 ROOT = Path(__file__).resolve().parents[2]
 # The owner's SMC method is strict: on random-walk prices, price almost never returns to an untouched
 # discount order block. Run its poisoning check at the loose end of its tunable ranges, so signals exist.
-POISON_PARAMS = {
-    "smc_sniper": {
-        "disp_atr": 1.0,
-        "window_m": 240,
-        "max_sl_atr": 2.0,
-        "stop_buffer_atr": 0.3,
-        "liq_lookback": 10,
-        "min_rr": 3.0,
-    }
+SMC_LOOSE = {
+    "disp_atr": 1.0,
+    "window_m": 240,
+    "max_sl_atr": 2.0,
+    "stop_buffer_atr": 0.3,
+    "liq_lookback": 10,
+    "min_rr": 3.0,
 }
+POISON_PARAMS = {"smc_sniper": SMC_LOOSE, "smc_sniper_active": SMC_LOOSE}
 LIBRARY = sorted(p for p in (ROOT / "strategies" / "library").iterdir() if (p / "strategy.yaml").exists())
 
 
@@ -52,6 +51,7 @@ def test_the_library_has_the_owner_requested_styles() -> None:
         "candle_sr_reversal",
         "scalp_session_breakout",
         "smc_sniper",
+        "smc_sniper_active",
     }
 
 

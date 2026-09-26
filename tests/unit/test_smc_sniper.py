@@ -103,3 +103,28 @@ def test_liquidity_is_only_swing_highs_nothing_has_traded_through(smc: ModuleTyp
     assert smc.liquidity_above(_cols(bars)) == [103.0]
     bars.append((100.0, 103.5, 99.5, 101.0))  # traded through: the liquidity is taken
     assert smc.liquidity_above(_cols(bars)) == []
+
+
+def test_the_active_variant_is_the_same_code() -> None:
+    lib = ROOT / "strategies" / "library"
+    assert (lib / "smc_sniper_active" / "strategy.py").read_bytes() == (
+        lib / "smc_sniper" / "strategy.py"
+    ).read_bytes()
+
+
+NO_BOS = {"b29": (101.8, 101.95, 101.7, 101.9)}  # the move never closes above the leg high
+
+
+def test_without_the_bos_rule_the_displacement_is_the_break(smc: ModuleType) -> None:
+    assert smc.m1_sequence(_cols(_sequence(**NO_BOS)), 30, 10, 1.5) is None  # strict: no BOS, no trade
+    seq = smc.m1_sequence(_cols(_sequence(**NO_BOS)), 30, 10, 1.5, require_bos=False)
+    assert seq is not None and seq["confirm"] == 2.0
+
+
+def test_without_the_bos_rule_the_pullback_still_comes_after_the_gap(smc: ModuleType) -> None:
+    bars = _sequence()[:29]  # ends on the gap bar
+    bars.append((101.2, 101.9, 100.55, 101.8))  # a bullish bar right after it, above the gap: no pullback
+    assert smc.m1_sequence(_cols(bars), 30, 10, 1.5, require_bos=False) is None
+    bars[-1] = (101.2, 101.9, 100.45, 101.8)  # control: the same bar dipping into the gap is a pullback...
+    bars.insert(-1, (101.8, 101.85, 101.1, 101.2))  # ...after a bearish bar it engulfs
+    assert smc.m1_sequence(_cols(bars), 30, 10, 1.5, require_bos=False) is not None

@@ -258,12 +258,10 @@ class SmcSniper(Strategy):
             return []
         window, lookback = int(p["window_m"]), int(p["liq_lookback"])
         m1 = ctx.market.bars(sym, Timeframe.M1, window + lookback + 20)
-        if not len(m1) or (p["require_m5"] and int(m1.close_time[-1]) > int(until)):
+        if not len(m1) or (until is not None and p["require_m5"] and int(m1.close_time[-1]) > int(until)):
             return []
         sell = bool(c["sell"])
-        seq = m1_sequence(
-            _candles(m1, sell), window, lookback, float(p["disp_atr"]), bool(p["require_bos"])
-        )
+        seq = m1_sequence(_candles(m1, sell), window, lookback, float(p["disp_atr"]), bool(p["require_bos"]))
         if seq is None:
             return []
         z_lo, z_hi = c["poi"]

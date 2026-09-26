@@ -615,7 +615,7 @@ function renderStatus(s) {
   lastPipe = {...s.pipeline};
   $("services").innerHTML = Object.entries(s.heartbeats).map(([k, age]) =>
     `<span class="chip ${age > 120 ? "stale" : ""}"><span class="dot"></span>${esc(k)} <span class="muted">${age < 60 ? Math.round(age) + "s" : Math.round(age / 60) + "m"}</span></span>`).join("") || `<span class="muted">no heartbeats yet</span>`;
-  $("learning").innerHTML = `Learning loops: <b>${s.learning_paused ? "paused" : "running"}</b> <button class="act" id="learnBtn">${s.learning_paused ? "Resume" : "Pause"} learning</button>`;
+  $("learning").innerHTML = `Learning loops: <b>not built yet</b> (build phase 9). Trades already feed each strategy's track record and its stage.${s.learning_paused ? " Switch: <b>paused</b>" : ""} <button class="act" id="learnBtn">${s.learning_paused ? "Resume" : "Pause"} learning</button>`;
   $("learnBtn").onclick = async () => { try { await post("/api/control/pause-learning", {paused: !s.learning_paused}); toast("learning " + (s.learning_paused ? "resumed" : "paused")); tick(); } catch (e) { toast(e.message); } };
   renderHealth(s);
   const sim = String(s.info.mode || "").startsWith("SIMULATED");
