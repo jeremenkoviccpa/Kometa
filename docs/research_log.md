@@ -117,3 +117,19 @@ setup (B, C); letting WATCH setups trade adds four losers in seven years (E). Th
 not produce an edge or a useful trade count on gold, and tuning its parameters cannot change that: the
 limit is the number of setups the rules allow, not their settings. The owner's 1-2% a day target was
 declined as a goal (1% a day compounds to about 1,100% a year; the signed limits halt at a 2% daily loss).
+
+## 2026-09-26 smc_sniper 2.0.0 on more markets (scripts/sniper_markets.py)
+
+Owner's choice: the same rules on more markets to get enough setups to judge. Dukascopy M1 bid/ask, research
+windows only (XAUUSD 2017-2023; EURUSD and GBPUSD 2019-2023; 2024 on is held out). Every run a trial.
+
+| Market | Years | As written: trades | R | Hard rules only: setups | Win | Avg R | Total R |
+|---|---|---|---|---|---|---|---|
+| XAUUSD | 7.0 | 1 | -1.1 | 14 (2.0/yr) | 7% | -0.77 | -10.8 |
+| EURUSD | 5.0 | 1 (A+) | -1.1 | 13 (2.6/yr) | 15% | -0.29 | -3.8 |
+| GBPUSD | 5.0 | 2 | -2.1 | 15 (3.0/yr) | 7% | -0.90 | -13.5 |
+
+Reading: consistent on every market. As written, 4 trades in 17 market-years, all losers; of the 42 setups
+that pass the hard rules, about 1 in 10 reaches its 1:2 target first. The tight stop under the retest's
+pullback low is hit first almost every time. More markets raise the count but not the result: the method
+as coded has no edge on this evidence. USDJPY and AUDUSD are still downloading.
