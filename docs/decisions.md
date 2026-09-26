@@ -360,3 +360,22 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   The switch reads "Paper trading" / "Shadow (watching, no trades)".
 - The owner's switches are saved next to the state directory (owner_choices.json, outside what a fresh start
   wipes) and win over the start-up default (AT_DEMO_TRADE), so they survive restarts and deploys.
+
+## 2026-09-26 The strategy assistant (owner request)
+
+- The owner asked for a chatbot that turns any idea into a strategy, saves it, shows it under Strategies and
+  can modify any strategy; the owner is responsible for what they save. `autotrader.ai.builder.Assistant`:
+  Claude (the owner's key, AT_AI_MODEL) gets Kometa's real strategy API in its instructions (the indicator
+  signatures and allowed imports are read from the code, so they cannot drift) and one working example; it
+  asks what is unclear and submits drafts with a tool. Each draft is checked in a child process with a time
+  limit (manifest and AST static checks, a 150-day synthetic smoke backtest, the future-poisoning test);
+  failures go back to Claude to fix, up to 4 rounds per owner message. Replies run in the background (the
+  hub polls) so no request stays open for minutes. 100 assistant calls a day at most; off under AT_ENV=live.
+- Saving needs the owner's explicit "I am responsible" and a passing draft. The manifest's id and version
+  are Kometa's (new id: 1.0.0; otherwise the next minor above every known version), origin owner, never
+  demo_only. Saved strategies live next to the state (persistent on Railway), the previous owner version is
+  archived, a saved version of a library strategy replaces it in the demo, and a broken saved strategy is
+  skipped with a log line, never fatal. They load on a restart (owner button: re-exec, same arguments; the
+  simulated market restarts, the owner's switches and strategies stay).
+- `ai` may now import data and validation (the draft checks); still never risk, execution or allocator.
+- Strategy cards: View code, Modify with assistant (a session that starts from the strategy's files).

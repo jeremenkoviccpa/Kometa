@@ -34,7 +34,7 @@ ALLOWED: dict[str, set[str]] = {
     "monitor": {"core"},
     "api": {"core", "lifecycle", "monitor"},
     # the owner's Claude tracks: they read bars and publish signals; sizing and orders stay elsewhere
-    "ai": {"core", "engine", "strategies_api"},
+    "ai": {"core", "engine", "strategies_api", "data", "validation"},  # + the assistant's draft checks
     "cli": {
         "core",
         "data",

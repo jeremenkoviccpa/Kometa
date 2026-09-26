@@ -23,8 +23,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import random
 import secrets
+import sys
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -35,7 +37,8 @@ from zoneinfo import ZoneInfo
 
 import polars as pl
 
-from autotrader.ai.claude import ClaudeDecider
+from autotrader.ai.builder import Assistant
+from autotrader.ai.claude import ClaudeChat, ClaudeDecider
 from autotrader.ai.trader import AiConfig, AiTraderService
 from autotrader.allocator.allocator import Allocator
 from autotrader.allocator.config import load_allocator_config
@@ -197,6 +200,7 @@ class DemoStack:
     ai: AiTraderService | None = None  # the owner's Claude tracks
     journal: JournalService | None = None  # every signal, its market snapshot and its outcome
     lessons: LessonBook | None = None  # L6: a lesson on every demotion, retirement, failed validation
+    assistant: Assistant | None = None  # the owner's strategy assistant (write, check, save, modify)
 
     def catalog(self) -> list[dict[str, Any]]:
         """Every strategy the demo can run, with its stage in the demo's registry."""
@@ -309,8 +313,18 @@ class DemoStack:
             paper_trade=self.paper_trade,
             ai=self.ai.view if self.ai is not None else None,
             learning=self.learning_view,
+            assistant=self.assistant,
+            known_versions=self._versions,
+            restart=restart_soon,
             protect_reads=protect_reads,
         )
+
+    def _versions(self) -> dict[str, list[str]]:
+        """Every version the registry knows, per strategy id (the assistant saves the next one)."""
+        out: dict[str, list[str]] = {}
+        for v in self.registry.versions():
+            out.setdefault(v.info.strategy_id, []).append(v.info.version)
+        return out
 
     def learning_view(self) -> dict[str, Any]:
         """The journal plus where each learning loop of spec section 14 stands in this build."""
@@ -386,6 +400,32 @@ def trading_day_start(frame: pl.DataFrame, after: datetime) -> datetime:
         if bucket_open_ns(to_ns(t), Timeframe.D1) == to_ns(t):
             return t  # type: ignore[no-any-return]
     raise SystemExit("not enough synthetic data after the warm-up period")
+
+
+def owner_strategies_dir(cfg: DemoConfig) -> Path:
+    return cfg.var.parent / "strategies"
+
+
+def load_owner_strategies(directory: Path) -> list[LoadedStrategy]:
+    """Every saved owner strategy that still loads (a broken one is skipped and logged, never fatal)."""
+    out: list[LoadedStrategy] = []
+    if not directory.exists():
+        return out
+    for d in sorted(directory.iterdir()):
+        if d.name.startswith("_") or not (d / "strategy.yaml").exists():
+            continue
+        try:
+            out.append(load_strategy(d))
+        except Exception:
+            log.exception("owner strategy %s did not load", d.name)
+    return out
+
+
+def restart_soon(delay: float = 1.0) -> None:
+    """Re-exec this process (same arguments) so newly saved strategies load; the answer goes out first."""
+    loop = asyncio.get_running_loop()
+    # the same interpreter and arguments: no shell, nothing from outside
+    loop.call_later(delay, lambda: os.execv(sys.executable, [sys.executable, *sys.argv]))  # noqa: S606
 
 
 def choices_path(cfg: DemoConfig) -> Path:
@@ -493,6 +533,11 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         for d in sorted((root / "strategies" / "library").iterdir())
         if (d / "strategy.yaml").exists()
     ]
+    # the owner's own strategies (the assistant saves them next to the state): a new id joins the library,
+    # a saved version of a library strategy replaces it here (the library file stays in git history)
+    for ls in load_owner_strategies(owner_strategies_dir(cfg)):
+        mine = on_market(ls, cfg.symbol)
+        library = [x for x in library if x.manifest.id != mine.manifest.id] + [mine]
     # the owner's Claude tracks: registered like strategies (a stage and a switch), off until switched on
     ai_tracks = [
         on_market(load_strategy(d), cfg.symbol)
@@ -743,6 +788,16 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         quote_ccy={s: instruments[s].quote for s in symbols},
     )
     stack.services = [lifecycle, risk, allocator, execution, engine, monitor, AuditService(audit)]
+    key = settings.anthropic_api_key
+    stack.assistant = Assistant(
+        root,
+        cfg.var.parent,
+        ClaudeChat(key.get_secret_value(), settings.ai_model)
+        if key is not None and settings.env != "live"
+        else None,
+        sources=lambda: {ls.manifest.id: ls.path for ls in stack.strategies},
+        disabled_reason="" if key is not None else "no Anthropic API key (AT_ANTHROPIC_API_KEY)",
+    )
     stack.journal = JournalService(
         clock, symbols, path=cfg.var / "journal.jsonl", history=history, events=news, bus=bus
     )

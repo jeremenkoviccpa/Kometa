@@ -7,7 +7,10 @@ dependencies = [
     "autotrader-core",
     "autotrader-engine",
     "autotrader-strategies-api",
+    "autotrader-data",
+    "autotrader-validation",
     "anthropic>=0.60",
+    "pyyaml>=6",
     "numpy>=2.0",
 ]
 
@@ -22,3 +25,5 @@ packages = ["src/autotrader"]
 autotrader-core = { workspace = true }
 autotrader-engine = { workspace = true }
 autotrader-strategies-api = { workspace = true }
+autotrader-data = { workspace = true }
+autotrader-validation = { workspace = true }

@@ -209,6 +209,23 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
   .scroll { overflow-x: auto; } .chart, .tv { height: 300px; } .bars .row { grid-template-columns: 110px 1fr 50px; }
   .checks { margin-left: 0; }
 }
+.as-wrap { display: grid; grid-template-columns: 240px 1fr; gap: 14px; min-height: 420px; }
+@media (max-width: 760px) { .as-wrap { grid-template-columns: 1fr; } }
+.as-side { display: flex; flex-direction: column; gap: 6px; max-height: 560px; overflow: auto; }
+.as-sess { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font-size: 12.5px; cursor: pointer; background: var(--panel2); }
+.as-sess.on, .as-sess:hover { border-color: var(--accent); }
+.as-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.as-log { display: flex; flex-direction: column; gap: 8px; max-height: 460px; overflow: auto; padding-right: 4px; }
+.as-msg { border-radius: 10px; padding: 9px 12px; font-size: 13.5px; line-height: 1.45; max-width: 92%; white-space: normal; overflow-wrap: anywhere; }
+.as-msg.owner { align-self: flex-end; background: color-mix(in srgb, var(--accent) 18%, var(--panel2)); }
+.as-msg.assistant { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); }
+.as-msg.checks { align-self: center; font-size: 12px; color: var(--muted); background: none; }
+.as-msg code { font: 12px ui-monospace, Menlo, monospace; background: var(--chip); padding: 1px 4px; border-radius: 4px; }
+.as-draft { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel2); font-size: 13px; }
+.as-input { display: flex; gap: 8px; align-items: flex-end; }
+.as-input textarea { flex: 1; resize: vertical; min-height: 60px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); font: 13.5px system-ui, sans-serif; }
+.codebox { max-height: 60vh; overflow: auto; font: 12px ui-monospace, Menlo, monospace; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; white-space: pre; }
+dialog.wide { width: min(980px, 96vw); }
 </style>
 </head>
 <body>
@@ -335,6 +352,16 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
     <div class="panel s12">
       <h2>Choose what to trade <span class="help" data-h="Switch each strategy on or off for paper trading in this demo. On: it trades at minimum size through the full risk gate. Off: it goes back to shadow, its pending orders are cancelled and its open positions closed. Needs the owner token. None of these are validated yet; see Research.">?</span><span class="right muted">paper trading · minimum size · every order through the risk gate</span></h2>
       <div class="cards" id="catalog"></div>
+    </div>
+    <div class="panel s12" id="assistantPanel"><h2>Strategy assistant <span class="help" data-h="Describe any trading idea in your own words. The assistant (Claude) asks what is unclear and writes it as a Kometa strategy; every draft is checked (static code checks, a smoke backtest on simulated prices, the no-lookahead test) before you can save it. Saved strategies appear above, start in shadow, and trade only when you switch them on, through the risk gate. You are responsible for what you save. To change an existing strategy, press Modify with assistant on its card.">?</span><span class="right muted" id="asState"></span></h2>
+      <div class="as-wrap">
+        <div class="as-side"><button class="act" id="asNew">+ New strategy</button><div id="asSessions"></div></div>
+        <div class="as-main">
+          <div class="as-log" id="asLog"></div>
+          <div id="asDraft"></div>
+          <div class="as-input"><textarea id="asText" placeholder="Describe your strategy in your own words: market, timeframes, when to enter, where the stop and target go, any filters."></textarea><button class="toggle" id="asSend">Send</button></div>
+        </div>
+      </div>
     </div>
     <div class="panel s12"><h2>Claude trader <span class="help" data-h="Claude Sonnet trades your SMC method in two tracks, switched on and off above (claude_smc_judge, claude_smc_free). Judge: Claude takes or skips each setup the coded rules find. Free: every 15 minutes Claude reads D1 down to M1 and may trade on its own. Code still refuses a stop on the wrong side or too wide and anything under 3R, and the risk gate sizes every trade. Paper only: never with real money.">?</span><span class="right muted" id="aiState"></span></h2>
       <div class="scroll" id="aiDecisions" style="max-height:520px"></div></div>
@@ -484,6 +511,7 @@ dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
 </aside>
 <div id="tipbox"></div>
 
+<dialog id="codeDlg" class="wide"><h3 id="codeTitle" style="margin:0 0 10px"></h3><div class="codebox" id="codeBody"></div><div class="row" style="margin-top:12px"><button class="act" id="codeClose">Close</button></div></dialog>
 <dialog id="ownerDlg">
   <h3 style="margin:0 0 4px">Owner controls</h3>
   <div class="muted" style="font-size:12.5px">Paste the access token: on a server it is the AT_API_OWNER_TOKEN you set there; locally the demo prints it at start (see var/hub.log). It stays in this browser tab only, and every command is written to the audit log. Nothing here can change risk limits.</div>
@@ -924,8 +952,10 @@ async function renderCatalog() {
       <div class="m">${esc(x.symbols.join(", "))} · ${esc(x.timeframes.join(" + "))} · expects ~${esc(x.expected.trades_per_month)} trades/month${x.plumbing ? " · plumbing test, not a trading method" : " · candidate, not validated"}</div>
       <div class="m">This demo: ${rs.length} paper trades, <span class="${cls(tot)}">${signed(tot)}R</span> · stage <span class="tag ${esc(x.stage || "")}">${esc(x.stage || "–")}</span></div>
       ${activityLine(x.activity)}
-      <div><button class="toggle ${x.trading ? "on" : ""}" data-pt="${esc(x.strategy_id)}|${esc(x.version)}|${x.trading ? "0" : "1"}">${x.trading ? "● Paper trading — click to stop" : "○ Shadow (watching, no trades) — click to paper trade"}</button></div>
+      <div><button class="act" data-code="${esc(x.strategy_id)}">View code</button> ${x.plumbing ? "" : `<button class="act" data-modify="${esc(x.strategy_id)}">Modify with assistant</button>`} <button class="toggle ${x.trading ? "on" : ""}" data-pt="${esc(x.strategy_id)}|${esc(x.version)}|${x.trading ? "0" : "1"}">${x.trading ? "● Paper trading — click to stop" : "○ Shadow (watching, no trades) — click to paper trade"}</button></div>
     </div>`; }).join("") : `<div class="empty">no strategies available in this process</div>`;
+  $("catalog").querySelectorAll("[data-code]").forEach(b => b.onclick = () => showCode(b.dataset.code));
+  $("catalog").querySelectorAll("[data-modify]").forEach(b => b.onclick = () => modifyWithAssistant(b.dataset.modify));
   $("catalog").querySelectorAll("[data-pt]").forEach(b => b.onclick = async () => {
     const [sid, v, on] = b.dataset.pt.split("|");
     b.disabled = true;
@@ -980,7 +1010,62 @@ async function renderLearning() {
   $("loops").innerHTML = (j.loops || []).map(l => `<div class="row"><span><b>${esc(l.loop)}</b><div class="muted">${esc(l.what)}</div></span><span class="tag ${l.status === "running" ? "open" : ""}">${esc(l.status)}</span></div>`).join("");
 }
 
+/* ---------------- strategy assistant ---------------- */
+let asSid = null, asBase = null, asTimer = null, asStarted = false;
+const asFmt = t => esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>");
+async function showCode(id) {
+  try { const c = await get(`/api/strategy/${encodeURIComponent(id)}/code`);
+    $("codeTitle").textContent = `${id}${c.owner_made ? " (yours)" : ""}`;
+    $("codeBody").textContent = `# strategy.yaml\n${c.manifest}\n\n# strategy.py\n${c.code}`;
+    $("codeDlg").showModal(); } catch (e) { toast(e.message); }
+}
+function modifyWithAssistant(id) {
+  asSid = null; asBase = id; $("asLog").innerHTML = `<div class="as-msg assistant">Changing <b>${esc(id)}</b>. Tell me what you want different; I will read its current code and propose a new version.</div>`;
+  $("asDraft").innerHTML = ""; $("asText").placeholder = `What should change in ${id}?`; $("asText").focus();
+  $("assistantPanel").scrollIntoView({behavior: "smooth"});
+}
+async function renderAssistant() {
+  let st; try { st = await get("/api/assistant"); } catch (e) { $("assistantPanel").hidden = true; return; }
+  $("asState").textContent = st.enabled ? `${st.calls_today}/${st.max_calls_per_day} assistant calls today` : `off: ${st.disabled_reason}`;
+  $("asSessions").innerHTML = st.sessions.map(x => `<div class="as-sess ${x.id === asSid ? "on" : ""}" data-sid="${esc(x.id)}">${esc(x.title)}<div class="muted">${stamp(x.updated)}${x.draft ? " · " + esc(x.draft) + (x.draft_ok ? " ✓" : "") : ""}</div></div>`).join("") || `<div class="muted" style="font-size:12.5px">No conversations yet.</div>`;
+  $("asSessions").querySelectorAll("[data-sid]").forEach(el => el.onclick = () => { asSid = el.dataset.sid; asBase = null; renderAssistant(); });
+  if (asSid) await loadSession(); else if (!asBase && !$("asLog").innerHTML) $("asLog").innerHTML = `<div class="as-msg assistant">Hi. Describe the strategy you want in your own words: which market, which timeframes, what makes you enter, where the stop and the target go, and any filters. I will ask about anything unclear, then write it and check it. You decide whether to save it, and you are responsible for it.</div>`;
+}
+async function loadSession() {
+  const s = await get(`/api/assistant/${asSid}`);
+  $("asLog").innerHTML = s.display.map(m => m.role === "checks"
+    ? `<div class="as-msg checks">checks ${esc(m.text)}${m.checks && m.checks.error ? ": " + esc(String(m.checks.error).split("\n")[0]) : ""}</div>`
+    : `<div class="as-msg ${m.role === "owner" ? "owner" : "assistant"}">${asFmt(m.text)}</div>`).join("") + (s.thinking ? `<div class="as-msg checks">thinking… (drafting and checking can take a few minutes)</div>` : "");
+  $("asLog").scrollTop = $("asLog").scrollHeight;
+  const d = s.draft;
+  if (d) {
+    const c = d.checks || {}, bt = c.backtest || {}, la = c.lookahead || {};
+    $("asDraft").innerHTML = `<div class="as-draft"><b>${esc(d.strategy_id)}</b> <span class="tag ${c.ok ? "open" : "danger"}">${c.ok ? "checks passed" : "checks failed" + (c.stage ? ": " + esc(c.stage) : "")}</span>
+      <div style="margin:6px 0">${esc(d.summary)}</div>
+      <div class="muted">static checks ${c.stage === "load" ? "failed" : "passed"} · smoke backtest ${bt.trades == null ? "–" : bt.trades + " trades in " + bt.days + " simulated days"} · no-lookahead ${la.passed == null ? "–" : la.passed ? (la.signals_checked ? "passed (" + la.signals_checked + " signals compared)" : "passed, but no signals to compare") : "FAILED"}</div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="act" id="asView">View draft code</button>
+      ${c.ok ? `<label style="font-size:12.5px"><input type="checkbox" id="asResp"> I am responsible for this strategy</label><button class="toggle" id="asSave">Save as a strategy</button>` : ""}</div>
+      ${(s.saved || []).map(x => `<div style="margin-top:8px">Saved <b>${esc(x.strategy_id)} ${esc(x.version)}</b>. <button class="act" id="asLoad">Load it now (restarts the demo, about a minute)</button></div>`).slice(-1).join("")}</div>`;
+    $("asView").onclick = () => { $("codeTitle").textContent = `draft: ${d.strategy_id}`; $("codeBody").textContent = `# strategy.yaml\n${d.manifest_yaml}\n\n# strategy.py\n${d.code}`; $("codeDlg").showModal(); };
+    if ($("asSave")) $("asSave").onclick = async () => {
+      if (!$("asResp").checked) { toast("Please confirm you are responsible for it first"); return; }
+      try { const r = await post("/api/assistant/save", {session_id: asSid, responsible: true}); toast(`saved ${r.strategy_id} ${r.version}`); loadSession(); } catch (e) { toast(e.message); } };
+    if ($("asLoad")) $("asLoad").onclick = async () => {
+      try { await post("/api/control/restart", {}); toast("restarting the demo… the page reconnects by itself"); } catch (e) { toast(e.message); } };
+  } else $("asDraft").innerHTML = "";
+  clearTimeout(asTimer);
+  if (s.thinking) asTimer = setTimeout(loadSession, 3000);
+}
+async function sendAssistant() {
+  const text = $("asText").value.trim(); if (!text) return;
+  $("asSend").disabled = true;
+  try { const r = await post("/api/assistant/message", {session_id: asSid, message: text, base: asSid ? null : asBase});
+    asSid = r.session_id; asBase = null; $("asText").value = ""; $("asText").placeholder = "Answer, or ask for a change…"; await renderAssistant();
+  } catch (e) { toast(e.message); } finally { $("asSend").disabled = false; }
+}
+
 async function renderStrategies() {
+  if (!asStarted) { asStarted = true; $("asSend").onclick = sendAssistant; $("asNew").onclick = () => { asSid = null; asBase = null; $("asLog").innerHTML = ""; $("asDraft").innerHTML = ""; renderAssistant(); }; $("codeClose").onclick = () => $("codeDlg").close(); renderAssistant(); }
   renderCatalog().catch(() => {});
   renderAi().catch(() => {});
   const [vers, alloc, trades] = await Promise.all([get("/api/versions"), get("/api/allocation"), get("/api/trades?limit=500")]);

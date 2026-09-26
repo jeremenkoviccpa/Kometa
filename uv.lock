@@ -220,18 +220,24 @@ source = { editable = "packages/ai" }
 dependencies = [
     { name = "anthropic" },
     { name = "autotrader-core" },
+    { name = "autotrader-data" },
     { name = "autotrader-engine" },
     { name = "autotrader-strategies-api" },
+    { name = "autotrader-validation" },
     { name = "numpy" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.60" },
     { name = "autotrader-core", editable = "packages/core" },
+    { name = "autotrader-data", editable = "packages/data" },
     { name = "autotrader-engine", editable = "packages/engine" },
     { name = "autotrader-strategies-api", editable = "packages/strategies_api" },
+    { name = "autotrader-validation", editable = "packages/validation" },
     { name = "numpy", specifier = ">=2.0" },
+    { name = "pyyaml", specifier = ">=6" },
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ only forwarded, and the risk gate accepts it only with an owner-signed token.
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 from collections.abc import Awaitable, Callable
@@ -17,7 +18,7 @@ from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from autotrader.core.bus import CONTROL, Bus
 from autotrader.core.clock import Clock
@@ -67,6 +68,17 @@ class PaperTradeBody(BaseModel):
     on: bool
 
 
+class AssistantMessage(BaseModel):
+    session_id: str | None = None
+    message: str = Field(min_length=1, max_length=20_000)
+    base: str | None = None  # a strategy id to modify (a new session only)
+
+
+class AssistantSave(BaseModel):
+    session_id: str
+    responsible: bool  # the owner confirms they are responsible for what they save
+
+
 class PauseBody(BaseModel):
     paused: bool
 
@@ -100,6 +112,9 @@ def create_app(
     paper_trade: Callable[[str, str, bool], Awaitable[str]] | None = None,
     ai: Callable[[], dict[str, Any]] | None = None,
     learning: Callable[[], dict[str, Any]] | None = None,
+    assistant: Any = None,  # autotrader.ai.builder.Assistant (api may not import ai)
+    known_versions: Callable[[], dict[str, list[str]]] | None = None,
+    restart: Callable[[], None] | None = None,
     protect_reads: bool = False,
 ) -> FastAPI:
     """`protect_reads`: every /api and /research request needs the owner token (public hosting); the page
@@ -133,6 +148,7 @@ def create_app(
             raise HTTPException(401, "owner token required")
 
     owner_only = [Depends(owner)]
+    _background: set[asyncio.Task[Any]] = set()  # assistant replies in flight
 
     # ------------------------------------------------------------ dashboard
 
@@ -513,6 +529,75 @@ def create_app(
         return (
             ai() if ai is not None else {"enabled": False, "disabled_reason": "not running", "decisions": []}
         )
+
+    # ------------------------------------------------------------ the strategy assistant
+
+    def _assistant() -> Any:
+        if assistant is None:
+            raise HTTPException(503, "the strategy assistant is not running here")
+        return assistant
+
+    @app.get("/api/assistant")
+    def assistant_status() -> dict[str, Any]:
+        a = _assistant()
+        return {**a.status(), "sessions": a.sessions()}
+
+    @app.get("/api/assistant/{session_id}")
+    def assistant_session(session_id: str) -> dict[str, Any]:
+        a = _assistant()
+        try:
+            return dict(a.view(a.session(session_id)))
+        except KeyError as e:
+            raise HTTPException(404, "no such session") from e
+
+    @app.post("/api/assistant/message", dependencies=owner_only)
+    async def assistant_message(body: AssistantMessage) -> dict[str, Any]:
+        """Owner: talk to the assistant. It answers in the background; poll the session for the reply."""
+        a = _assistant()
+        _audit(
+            "assistant_message",
+            {"session_id": body.session_id, "base": body.base, "chars": len(body.message)},
+        )
+        try:
+            sid = a.post(body.session_id, body.message, body.base)
+        except KeyError as e:
+            raise HTTPException(404, f"unknown session or strategy: {e}") from e
+        except RuntimeError as e:
+            raise HTTPException(409, str(e)) from e
+        task = asyncio.create_task(a.reply(sid))
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+        return {"session_id": sid, "thinking": True}
+
+    @app.post("/api/assistant/save", dependencies=owner_only)
+    def assistant_save(body: AssistantSave) -> dict[str, Any]:
+        """Owner: save the session's checked draft as a new strategy version (loads on restart)."""
+        a = _assistant()
+        try:
+            saved = a.save(body.session_id, body.responsible, known_versions() if known_versions else {})
+        except PermissionError as e:
+            raise HTTPException(400, str(e)) from e
+        except (KeyError, ValueError) as e:
+            raise HTTPException(409, str(e)) from e
+        _audit("assistant_save", saved)
+        return dict(saved)
+
+    @app.get("/api/strategy/{strategy_id}/code")
+    def strategy_code(strategy_id: str) -> dict[str, Any]:
+        """A strategy's manifest and code, as the demo runs it."""
+        try:
+            return dict(_assistant().code(strategy_id))
+        except KeyError as e:
+            raise HTTPException(404, "unknown strategy") from e
+
+    @app.post("/api/control/restart", dependencies=owner_only)
+    def control_restart() -> dict[str, bool]:
+        """Owner: restart the demo so saved strategies load (the simulated market starts again)."""
+        if restart is None:
+            raise HTTPException(503, "restart is not available here")
+        _audit("restart", {})
+        restart()
+        return {"restarting": True}
 
     @app.get("/api/learning")
     def get_learning() -> dict[str, Any]:

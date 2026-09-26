@@ -84,6 +84,7 @@ def test_no_mutation_run_left_the_tree_mutated() -> None:
 YAML_NOT_CONFIG = {
     "packages/strategies_api/src/autotrader/strategies_api/manifest.py",  # strategy manifests (code hash)
     "packages/cli/src/autotrader/cli/main.py",  # `at risk sign` validates a file before the owner signs it
+    "packages/ai/src/autotrader/ai/builder.py",  # the assistant's strategy manifests (code hash), not config
 }
 
 

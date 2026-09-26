@@ -24,6 +24,8 @@ REOPT_T = "tests/unit/test_reopt_challenger.py"
 SNIPER = "strategies/library/smc_sniper/strategy.py"
 SNIPER_T = "tests/unit/test_smc_sniper.py"
 SWAP_T = "tests/unit/test_champion_swap.py"
+BUILDER = "packages/ai/src/autotrader/ai/builder.py"
+BUILDER_T = "tests/unit/test_assistant.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -502,5 +504,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         "    return demoted_at is not None and swapped_at <= demoted_at <= swapped_at + ROLLBACK_WINDOW\n",
         "    return demoted_at is not None and swapped_at <= demoted_at\n",
         (SWAP_T,),
+    ),
+    Mutation(
+        "assistant: saved without the owner's confirmation",
+        BUILDER,
+        "        if not responsible:\n",
+        "        if False:\n",
+        (BUILDER_T,),
+    ),
+    Mutation(
+        "assistant: a draft that failed its checks can be saved",
+        BUILDER,
+        '        if not draft or not draft["checks"].get("ok"):\n',
+        "        if not draft:\n",
+        (BUILDER_T,),
     ),
 )

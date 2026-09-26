@@ -70,6 +70,16 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
         # the owner's Claude tracks: registered with a switch, off by default (each call costs money)
         assert not cat["claude_smc_judge"]["trading"] and not cat["claude_smc_free"]["trading"]
         assert cat["claude_smc_free"]["style"] == "Claude AI"
+        # the strategy assistant: code of any strategy is readable; without an API key it is off, politely
+        code = c.get("/api/strategy/smc_sniper/code").json()
+        assert "id: smc_sniper" in code["manifest"] and "class SmcSniper" in code["code"]
+        assert c.get("/api/strategy/nope/code").status_code == 404
+        st_as = c.get("/api/assistant").json()
+        assert st_as["enabled"] is False and st_as["sessions"] == []
+        auth_as = {"Authorization": "Bearer " + "t" * 40}
+        body_as = {"message": "a breakout strategy"}
+        assert c.post("/api/assistant/message", json=body_as).status_code == 401  # owner only
+        assert c.post("/api/assistant/message", json=body_as, headers=auth_as).status_code == 409
         ai = c.get("/api/ai").json()
         assert ai["tracks"] == {"claude_smc_free": False, "claude_smc_judge": False}
         auth = {"Authorization": "Bearer " + "t" * 40}

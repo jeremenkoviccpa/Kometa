@@ -32,3 +32,23 @@ class ClaudeDecider:
             if block.type == "tool_use":
                 return dict(cast(dict[str, Any], block.input))
         raise ValueError("Claude answered without a decision")
+
+
+class ClaudeChat:
+    """A multi-turn call with tools for the strategy assistant: the reply's content blocks as plain dicts."""
+
+    def __init__(self, api_key: str, model: str, *, timeout: float = 180.0) -> None:
+        self.model = model
+        self._client = AsyncAnthropic(api_key=api_key, timeout=timeout, max_retries=1)
+
+    async def __call__(
+        self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        r = await self._client.messages.create(
+            model=self.model,
+            max_tokens=12000,
+            system=system,
+            messages=cast(list[MessageParam], messages),
+            tools=[cast(ToolParam, t) for t in tools],
+        )
+        return [b.model_dump(mode="json", exclude_none=True) for b in r.content]
