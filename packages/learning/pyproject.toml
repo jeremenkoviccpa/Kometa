@@ -3,7 +3,7 @@ name = "autotrader-learning"
 version = "0.1.0"
 description = "Re-optimization, meta-labeling, regime models, model registry."
 requires-python = ">=3.12,<3.13"
-dependencies = ["autotrader-core", "autotrader-lifecycle", "autotrader-engine", "autotrader-strategies-api", "autotrader-validation", "numpy>=2.0", "pydantic>=2"]
+dependencies = ["autotrader-core", "autotrader-lifecycle", "autotrader-engine", "autotrader-strategies-api", "autotrader-validation", "numpy>=2.0", "pydantic>=2", "scikit-learn>=1.5"]
 
 [build-system]
 requires = ["hatchling"]

@@ -26,6 +26,8 @@ SNIPER_T = "tests/unit/test_smc_sniper.py"
 SWAP_T = "tests/unit/test_champion_swap.py"
 BUILDER = "packages/ai/src/autotrader/ai/builder.py"
 BUILDER_T = "tests/unit/test_assistant.py"
+META = "packages/learning/src/autotrader/learning/meta.py"
+META_T = "tests/unit/test_meta.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
 RISK = "tests/unit/test_risk_gate.py"
@@ -518,5 +520,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         '        if not draft or not draft["checks"].get("ok"):\n',
         "        if not draft:\n",
         (BUILDER_T,),
+    ),
+    Mutation(
+        "meta: training keeps samples whose outcome overlaps the test fold",
+        META,
+        "        train = idx[~overlaps & ~embargoed & ((idx < a) | (idx >= b))]\n",
+        "        train = idx[~embargoed & ((idx < a) | (idx >= b))]\n",
+        (META_T,),
+    ),
+    Mutation(
+        "meta: no embargo after the test fold",
+        META,
+        "        train = idx[~overlaps & ~embargoed & ((idx < a) | (idx >= b))]\n",
+        "        train = idx[~overlaps & ((idx < a) | (idx >= b))]\n",
+        (META_T,),
     ),
 )

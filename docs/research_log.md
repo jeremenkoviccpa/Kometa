@@ -133,3 +133,17 @@ Reading: consistent on every market. As written, 4 trades in 17 market-years, al
 that pass the hard rules, about 1 in 10 reaches its 1:2 target first. The tight stop under the retest's
 pullback low is hit first almost every time. More markets raise the count but not the result: the method
 as coded has no edge on this evidence. USDJPY and AUDUSD are still downloading.
+
+## 2026-09-26 First meta model: scalp_session_breakout on real gold 2017-2022
+
+`at learn meta` on the research data (the command also held out 2023 as its own holdout year): 961 trades,
+purged 5-fold cross-validation, out of sample.
+
+| | Unfiltered | Meta-filtered (44% kept) |
+|---|---|---|
+| R per signal | -0.105 | -0.052 |
+| Deflated Sharpe (probability) | 0.000 | 0.004 |
+
+Reading: the filter passes the spec's gate (better on both counts) and roughly halves the loss per signal,
+but the strategy still loses after it. Not a reason to trade it; a sign the journal's features carry some
+information about which breakouts fail, worth rechecking once the strategy itself has an edge.

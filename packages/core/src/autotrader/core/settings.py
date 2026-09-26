@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     registry_path: Path = Path("var/registry.jsonl")  # strategy versions and stage history
     reports_dir: Path = Path("reports")
     lessons_path: Path = Path("var/lessons.jsonl")  # L6 failure lessons (learning)
+    models_dir: Path = Path("var/models")  # L3 meta models and their registry (learning)
     execution_journal_path: Path = Path("var/execution_journal.json")
     execution_quality_path: Path = Path("var/execution_quality.jsonl")  # until Postgres runs
 

@@ -133,8 +133,8 @@ LOOPS = [
     },
     {
         "loop": "L3 Meta-labeling",
-        "status": "not built",
-        "what": "learn which signals to skip (needs 300 signals)",
+        "status": "offline",
+        "what": "at learn meta: learns which signals to skip; not applied to live signals yet",
     },
     {"loop": "L4 Regime", "status": "not built", "what": "trending/ranging/volatile days per strategy"},
     {"loop": "L5 Allocation", "status": "running", "what": "risk budget by live results (live stages only)"},

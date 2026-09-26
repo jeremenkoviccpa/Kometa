@@ -379,3 +379,23 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   simulated market restarts, the owner's switches and strategies stay).
 - `ai` may now import data and validation (the draft checks); still never risk, execution or allocator.
 - Strategy cards: View code, Modify with assistant (a session that starts from the strategy's files).
+
+## 2026-09-26 Phase 9, slice 4a: meta-labeling (L3), offline
+
+- The model is scikit-learn's HistGradientBoostingClassifier (histogram gradient-boosted trees, the LightGBM
+  algorithm): LightGBM's macOS wheel needs a system libomp, and the spec's stack lists scikit-learn too. It
+  handles missing features natively (unknown stays NaN, never 0) and is deterministic with a seed.
+- A historical journal (`learning.history.journal_from_backtest`) replays a strategy over research data and
+  records each trade with the live journal's market snapshot (all timeframes resampled from the same M1,
+  whatever the strategy uses) and its real outcome (R, exit as label). The first version leaked: the spread
+  feature came from the backtest's cost model, which is estimated from all the data; the no-lookahead test
+  caught it and the feature now uses the spread quoted on the last closed bar.
+- Purged, embargoed time-ordered 5-fold cross-validation (overlapping outcome windows dropped from training,
+  1% embargo after each test fold). A signal is kept when the predicted win probability is at least the
+  training set's base rate: no threshold is searched, so nothing extra to count. Keep or skip only (size 1
+  or 0; never more). The gate is the spec's: higher expectancy per signal (skips count 0) and higher deflated
+  Sharpe than unfiltered, out of sample. A pass that still loses carries a warning: better is not profitable.
+- `at learn meta <strategy> --data <dir>` cuts the holdout (the last `holdout.months`) itself, needs 300
+  signals, stores the model (pickle, sha256) and appends its record to var/models/registry.jsonl.
+- Not in this slice: applying a model to live signals (a filter in front of the allocator, deterministic
+  inference, only after a shadow A/B win). Hub loop status: L3 "offline".

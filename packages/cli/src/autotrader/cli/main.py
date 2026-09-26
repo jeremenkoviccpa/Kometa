@@ -37,7 +37,9 @@ from autotrader.engine.backtest import BacktestConfig, run_backtest
 from autotrader.execution.adapter import BrokerAdapter, BrokerUnavailableError
 from autotrader.execution.mt5 import MT5Adapter
 from autotrader.execution.service import StartupRefusedError, startup_checks
+from autotrader.learning.history import journal_from_backtest
 from autotrader.learning.lessons import LessonBook, lesson_from_validation
+from autotrader.learning.meta import train_and_register
 from autotrader.learning.reopt import challenger_class, fit_recent, next_version, step_params
 from autotrader.lifecycle.registry import IllegalTransitionError, Registry, VersionInfo
 from autotrader.risk.config import ConfigSignatureError, RiskLimits, load_signed
@@ -193,6 +195,38 @@ def _validate_and_report(
         print(f"warn {w}")
     print(f"{'PASSED' if rep.passed else 'FAILED'}  report: {stem.with_suffix('.html')}")
     return rep, stem
+
+
+def _learn_meta(args: argparse.Namespace) -> int:
+    """L3: a historical journal from backtests on the research data (the holdout is cut off here), purged
+    cross-validation, the out-of-sample gate, and the model in the registry."""
+    settings = Settings()
+    ls = load_strategy(Path(args.strategy))
+    m = ls.manifest
+    cfg, _ = ValidationConfig.load(Path(args.config))
+    symbols = tuple(args.symbols or m.symbols)
+    frames, synthetic = _load_frames(args, symbols)
+    instruments = _instruments(args, symbols, synthetic)
+    entries = []
+    for s, f in frames.items():
+        holdout = ensure_utc(default_epoch(f["open_time"][-1], cfg.holdout.months, None).start)
+        research = f.filter(pl.col("open_time") < holdout)
+        got = journal_from_backtest(ls.cls, research, s, instruments[s])
+        print(f"{s}: {len(got)} trades before {holdout:%Y-%m-%d} (the holdout after it is never read)")
+        entries += got
+    rec, rep = train_and_register(entries, settings.models_dir, seed=args.seed)
+    print(
+        f"signals {rep.signals}  base {rep.base_expectancy:+.3f}R/signal  "
+        f"filtered {rep.filtered_expectancy:+.3f}R/signal  kept {rep.kept_share:.0%}  "
+        f"DSR {rep.base_dsr:.3f} -> {rep.filtered_dsr:.3f}"
+    )
+    for why in rep.reasons:
+        print(f"  refused: {why}")
+    for w in rep.warnings:
+        print(f"  warning: {w}")
+    if rec is not None:
+        print(f"{rec.status}: model {rec.model_id} in {settings.models_dir / rec.file}")
+    return 0 if rep.passed else 1
 
 
 def _learn_reopt(args: argparse.Namespace) -> int:
@@ -605,6 +639,12 @@ def build_parser() -> argparse.ArgumentParser:
     ro.add_argument("--window-years", type=float, default=3.0, help="recent window to fit on (spec: 3)")
     ro.add_argument("--budget", type=int, default=None, help="parameter sets to try (default: search_budget)")
     ro.set_defaults(func=_learn_reopt)
+    me = le.add_parser("meta", help="L3: learn which signals to skip; judged out of sample, then registered")
+    me.add_argument("strategy")
+    _add_data_args(me)
+    me.add_argument("--symbols", nargs="*", help="markets to learn from (default: the manifest's)")
+    me.add_argument("--config", default="config/validation.yaml")
+    me.set_defaults(func=_learn_meta)
 
     rk = sub.add_parser("risk", help="owner-side risk tools").add_subparsers(dest="risk_cmd", required=True)
     kg = rk.add_parser("keygen", help="create the owner Ed25519 key pair (run on the owner's machine)")
