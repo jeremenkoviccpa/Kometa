@@ -101,8 +101,8 @@ def test_config_loaders_hash_what_they_read() -> None:
 
 
 def test_the_vercel_frontend_is_the_current_hub() -> None:
-    """web/index.html is a copy of the hub page for Vercel; a stale copy hid every new screen once (2026-09-26).
-    Rebuild with `uv run python scripts/build_web.py <railway url>` and redeploy `web/` after changing the hub."""
+    """web/index.html is the hub page copied for Vercel; a stale copy once hid every new screen (2026-09-26).
+    After changing the hub: `uv run python scripts/build_web.py <railway url>`, then redeploy `web/`."""
     web = ROOT / "web" / "index.html"
     hub = ROOT / "packages" / "api" / "src" / "autotrader" / "api" / "dashboard.html"
     assert not web.exists() or web.read_bytes() == hub.read_bytes(), (
