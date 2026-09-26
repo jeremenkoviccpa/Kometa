@@ -21,6 +21,7 @@ backtest pins it); the demo runs the same code and version on `--symbol` instead
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import secrets
@@ -218,14 +219,49 @@ class DemoStack:
                     "stage": stage.value if stage else None,
                     "trading": stage == Stage.DEMO_ONLY,
                     "plumbing": m.demo_only,
+                    "activity": self._activity(m.id, m.version),
                 }
             )
         return out
+
+    def _activity(self, strategy_id: str, version: str) -> dict[str, Any]:
+        """What this version did in the demo, paper and shadow alike, from the journal."""
+        es = sorted(
+            (
+                e
+                for e in (self.journal.entries.values() if self.journal is not None else [])
+                if e.strategy_id == strategy_id and e.strategy_version == version
+            ),
+            key=lambda e: e.created_at,
+        )
+        done = [e.outcome for e in es if e.outcome is not None]
+        last = es[-1] if es else None
+        return {
+            "signals": len(es),
+            "paper": sum(not e.shadow for e in es),
+            "shadow": sum(e.shadow for e in es),
+            "resolved": len(done),
+            "target_first": sum(o.label == 1 for o in done),
+            "stop_first": sum(o.label == -1 for o in done),
+            "avg_r": sum(o.r for o in done) / len(done) if done else None,
+            "last": None
+            if last is None
+            else {
+                "at": last.created_at.isoformat(),
+                "side": last.side,
+                "shadow": last.shadow,
+                "status": last.status,
+                "outcome": None
+                if last.outcome is None
+                else {"label": last.outcome.label, "r": last.outcome.r},
+            },
+        }
 
     async def paper_trade(self, strategy_id: str, version: str, on: bool) -> str:
         """Owner: start or stop paper trading a strategy. Stopping cancels its entries and closes its
         positions (like leaving a money stage). The stage change reaches every service first."""
         self.registry.paper_trade(strategy_id, version, on)
+        save_choice(choices_path(self.cfg), strategy_id, on)
         await self.lifecycle.flush()
         if not on:
             order = DemotionOrder(
@@ -350,6 +386,27 @@ def trading_day_start(frame: pl.DataFrame, after: datetime) -> datetime:
         if bucket_open_ns(to_ns(t), Timeframe.D1) == to_ns(t):
             return t  # type: ignore[no-any-return]
     raise SystemExit("not enough synthetic data after the warm-up period")
+
+
+def choices_path(cfg: DemoConfig) -> Path:
+    """The owner's on/off switches live next to the state directory, which a fresh start wipes."""
+    return cfg.var.parent / "owner_choices.json"
+
+
+def load_choices(path: Path) -> dict[str, bool]:
+    try:
+        raw = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    return {str(k): bool(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+
+
+def save_choice(path: Path, strategy_id: str, on: bool) -> None:
+    choices = {**load_choices(path), strategy_id: on}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(choices, sort_keys=True, indent=1))
+    tmp.replace(path)
 
 
 def warmup_history(
@@ -597,6 +654,9 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
     registry = Registry(JsonlLedger(cfg.var / "registry.jsonl"), clock, router)
     known = {v.key for v in registry.versions()}
     trade = set(cfg.trade) if cfg.trade is not None else {ls.manifest.id for ls in library}
+    # the owner's own switches win over the start-up default, and survive restarts and deploys
+    for sid, on in load_choices(choices_path(cfg)).items():
+        (trade.add if on else trade.discard)(sid)
     for ls in strategies:
         m = ls.manifest
         if (m.id, m.version) in known:
@@ -629,7 +689,12 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         else None
     )
     engine = EngineLiveService(
-        bus, clock, money=[(ls.cls, {}) for ls in strategies], history=history, news_fn=news_fn
+        bus,
+        clock,
+        money=[(ls.cls, {}) for ls in strategies],
+        history=history,
+        news_fn=news_fn,
+        shadow_signals=True,  # strategies switched off still show what they would trade
     )
     rules = next((ls for ls in library if ls.manifest.id == "smc_sniper"), None)
     ai = None
@@ -679,7 +744,7 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
     )
     stack.services = [lifecycle, risk, allocator, execution, engine, monitor, AuditService(audit)]
     stack.journal = JournalService(
-        clock, symbols, path=cfg.var / "journal.jsonl", history=history, events=news
+        clock, symbols, path=cfg.var / "journal.jsonl", history=history, events=news, bus=bus
     )
     stack.services.append(stack.journal)
     journal = stack.journal

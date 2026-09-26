@@ -905,6 +905,13 @@ function renderTrades(trades) {
 /* other views */
 async function renderTradesView() { $("journeys").innerHTML = journeyTable(await get("/api/journeys?limit=300"), "no trade journeys yet"); }
 
+function activityLine(a) {
+  if (!a || !a.signals) return `<div class="m muted">No signals yet: it is watching the market.</div>`;
+  const l = a.last, o = l && l.outcome;
+  const last = !l ? "" : `last: ${esc(l.side.toUpperCase())} ${stamp(l.at)} ${l.shadow ? "(shadow)" : "(" + esc(l.status) + ")"} → ${!o ? "following…" : o.label === 1 ? "target" : o.label === -1 ? "stop" : "timeout"}${o ? " " + signed(o.r) + "R" : ""}`;
+  return `<div class="m">Signals ${a.signals} (paper ${a.paper}, shadow ${a.shadow}) · outcomes ${a.resolved}: ${a.target_first} target / ${a.stop_first} stop${a.avg_r == null ? "" : ` · avg <span class="${cls(a.avg_r)}">${signed(a.avg_r)}R</span>`}<div class="muted">${last}</div></div>`;
+}
+
 async function renderCatalog() {
   const [cat, trades] = await Promise.all([get("/api/catalog"), get("/api/trades?limit=500")]);
   const stats = {};
@@ -915,8 +922,9 @@ async function renderCatalog() {
       <div class="t"><span class="tag ${x.plumbing ? "" : x.style === "Scalping" ? "pending" : "open"}">${esc(x.style)}</span><b>${esc(x.strategy_id)}</b><span class="muted">${esc(x.version)}</span></div>
       <div class="d">${esc(x.description || "")}</div>
       <div class="m">${esc(x.symbols.join(", "))} · ${esc(x.timeframes.join(" + "))} · expects ~${esc(x.expected.trades_per_month)} trades/month${x.plumbing ? " · plumbing test, not a trading method" : " · candidate, not validated"}</div>
-      <div class="m">This demo: ${rs.length} trades, <span class="${cls(tot)}">${signed(tot)}R</span> · stage <span class="tag ${esc(x.stage || "")}">${esc(x.stage || "–")}</span></div>
-      <div><button class="toggle ${x.trading ? "on" : ""}" data-pt="${esc(x.strategy_id)}|${esc(x.version)}|${x.trading ? "0" : "1"}">${x.trading ? "● Trading — click to stop" : "○ Off — click to paper trade"}</button></div>
+      <div class="m">This demo: ${rs.length} paper trades, <span class="${cls(tot)}">${signed(tot)}R</span> · stage <span class="tag ${esc(x.stage || "")}">${esc(x.stage || "–")}</span></div>
+      ${activityLine(x.activity)}
+      <div><button class="toggle ${x.trading ? "on" : ""}" data-pt="${esc(x.strategy_id)}|${esc(x.version)}|${x.trading ? "0" : "1"}">${x.trading ? "● Paper trading — click to stop" : "○ Shadow (watching, no trades) — click to paper trade"}</button></div>
     </div>`; }).join("") : `<div class="empty">no strategies available in this process</div>`;
   $("catalog").querySelectorAll("[data-pt]").forEach(b => b.onclick = async () => {
     const [sid, v, on] = b.dataset.pt.split("|");

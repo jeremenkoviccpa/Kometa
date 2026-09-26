@@ -348,3 +348,15 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
 - The hub's Learning tab lists challengers with their latest swap test.
 - Known gap: the hosted demo runs paper-trading versions only; a challenger in shadow there collects no
   trades until the demo runs shadow sessions. Challengers come from offline `at learn reopt` runs today.
+
+## 2026-09-26 Demo: every strategy visible, switches that persist
+
+- In the demo every strategy runs; one that is switched off is in shadow and now publishes its signals marked
+  shadow (EngineLiveService(shadow_signals=True); never sized, never an order). Production keeps running
+  shadow versions in shadow sessions. The journal follows every signal and, with a bus, turns a resolved
+  shadow signal into a shadow trade (account "shadow", no size, R only): the hub shows what each strategy
+  would have made, and the lifecycle gets shadow evidence for challengers (closes the 9.3b demo gap).
+- Strategy cards show the version's activity (signals paper/shadow, outcomes, average R, the last signal).
+  The switch reads "Paper trading" / "Shadow (watching, no trades)".
+- The owner's switches are saved next to the state directory (owner_choices.json, outside what a fresh start
+  wipes) and win over the start-up default (AT_DEMO_TRADE), so they survive restarts and deploys.

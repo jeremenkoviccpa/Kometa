@@ -324,6 +324,17 @@ async def test_engine_is_silent_unless_the_version_is_in_a_money_stage() -> None
     await minutes(bus, eng, 5, 5)
     assert len(await bus.read(SIGNALS, "obs", "o")) >= 4
 
+    # the demo: a shadow version shows what it would trade, marked shadow (never sized); retired stays silent
+    bus2 = InMemoryBus()
+    demo = EngineLiveService(bus2, clock, money=[(Always, {})], shadow_signals=True)
+    await bus2.publish(STAGES, StageSnapshot(at=T0, stages=(("always", "1.0.0", Stage.RETIRED),)))
+    await minutes(bus2, demo, 5, 0)
+    assert await bus2.read(SIGNALS, "obs", "o") == []
+    await bus2.publish(STAGES, StageSnapshot(at=T0, stages=(("always", "1.0.0", Stage.SHADOW),)))
+    await minutes(bus2, demo, 5, 5)
+    shadow = [m for _, m in await bus2.read(SIGNALS, "obs", "o")]
+    assert len(shadow) >= 4 and all(isinstance(m, SignalEmitted) and m.shadow for m in shadow)
+
 
 async def test_risk_service_news_blackout_and_a_stale_calendar_fail_closed(tmp_path: Path) -> None:
     """Check 8 on the bus path: a high-impact USD event 5 minutes away blocks a gold entry; a configured

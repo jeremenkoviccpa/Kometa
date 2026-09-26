@@ -23,7 +23,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from autotrader.core.broker import Quote
-from autotrader.core.bus import DECISIONS, INTENTS, QUOTES, SIGNALS, TRADES, Handler
+from autotrader.core.bus import DECISIONS, INTENTS, QUOTES, SIGNALS, TRADES, Bus, Handler
 from autotrader.core.clock import Clock
 from autotrader.core.events import (
     BarClosed,
@@ -34,11 +34,12 @@ from autotrader.core.events import (
     SignalEmitted,
 )
 from autotrader.core.indicators import EventIndex
-from autotrader.core.models import Bar, Timeframe
+from autotrader.core.models import Bar, Timeframe, Trade
 from autotrader.core.series import BarsArray, to_ns
 from autotrader.engine.live_bars import LiveBarBuilder
 from autotrader.learning.features import FeatureSnapshot, snapshot
 
+SHADOW_ACCOUNT = "shadow"  # the lifecycle's account id for shadow trades
 KEEP = {Timeframe.M5: 400, Timeframe.H1: 400, Timeframe.H4: 300, Timeframe.D1: 120}
 # how long an untouched signal is followed before it times out, by the strategy's own timeframe
 HORIZON = {
@@ -113,6 +114,38 @@ def _row(b: Bar) -> dict[str, float | int]:
     }
 
 
+def shadow_trade(e: JournalEntry) -> Trade:
+    """The trade a shadow signal would have been, in R (nominal money: 1 unit at risk, no size, no costs
+    beyond the spread in its entry price)."""
+    o = e.outcome
+    if o is None:
+        raise ValueError("a shadow trade needs an outcome")
+    risk = abs(e.entry - e.stop)
+    exit_px = e.entry + o.r * risk if e.side == "buy" else e.entry - o.r * risk
+    r = Decimal(str(round(o.r, 6)))
+    return Trade(
+        trade_id=f"shadow-{e.signal_id}",
+        account_id=SHADOW_ACCOUNT,
+        strategy_id=e.strategy_id,
+        strategy_version=e.strategy_version,
+        symbol=e.symbol,
+        side=e.side,
+        lots=Decimal(0),
+        entry_time=e.created_at,
+        entry_price=Decimal(str(e.entry)),
+        stop_price=Decimal(str(e.stop)),
+        exit_time=o.resolved_at,
+        exit_price=Decimal(str(round(exit_px, 6))),
+        pnl_gross=r,
+        costs=Decimal(0),
+        pnl_net=r,
+        money_at_risk=Decimal(1),
+        r_multiple=o.r,
+        mae=o.mae_r,
+        mfe=o.mfe_r,
+    )
+
+
 def follow(e: JournalEntry, bar: Bar) -> JournalEntry:
     """One closed M1 bar of the signal's life: excursions, and the outcome if a barrier is reached."""
     if e.outcome is not None or bar.open_time < e.created_at:
@@ -153,8 +186,13 @@ class JournalService:
         path: Path | None = None,
         history: Mapping[tuple[str, Timeframe], BarsArray] | None = None,
         events: Callable[[], EventIndex | None] | None = None,
+        bus: Bus | None = None,
     ) -> None:
         self.clock = clock
+        # with a bus, a resolved SHADOW signal becomes a shadow trade on TRADES (account "shadow"): what the
+        # version would have made, for the hub and the lifecycle's shadow evidence
+        self.bus = bus
+        self._out: list[PositionClosed] = []
         self.path = path
         self.events = events
         subs = [(s, tf) for s in symbols for tf in (Timeframe.M1, *KEEP)]
@@ -213,9 +251,15 @@ class JournalService:
         q = Quote(symbol=msg.symbol, bid=Decimal(str(msg.bid)), ask=Decimal(str(msg.ask)), time=msg.at)
         self.quotes[q.symbol] = q
         self.on_bars(self.builder.on_quote(q))
+        await self.flush()
 
     async def on_time(self, now: datetime) -> None:
         self.on_bars(self.builder.on_time(now))
+        await self.flush()
+
+    async def flush(self) -> None:
+        while self._out and self.bus is not None:
+            await self.bus.publish(TRADES, self._out.pop(0))
 
     def on_bars(self, events: Sequence[BarClosed]) -> None:
         for ev in events:
@@ -228,6 +272,8 @@ class JournalService:
                     n = follow(e, ev.bar)
                     if n.outcome is not None:
                         self._save(n)
+                        if n.shadow and self.bus is not None:
+                            self._out.append(PositionClosed(at=n.outcome.resolved_at, trade=shadow_trade(n)))
                     else:
                         self.entries[sid] = n  # excursions so far: saved with the outcome
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from autotrader.cli.demo import DemoConfig, build, play_sim, stage_of
+from autotrader.cli.demo import DemoConfig, build, choices_path, load_choices, play_sim, save_choice, stage_of
 from autotrader.core.alerts import Severity
 from autotrader.core.broker import is_system_comment
 from autotrader.core.models import Stage
@@ -65,6 +65,8 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
             cat["scalp_session_breakout"]["trading"] and cat["scalp_session_breakout"]["style"] == "Scalping"
         )
         assert not cat["demo_ma_cross"]["trading"] and cat["demo_ma_cross"]["plumbing"]
+        # strategies that are off run in shadow: their signals and would-have trades are visible
+        assert st.signals["shadow"] > 0 and cat["demo_ma_cross"]["activity"]["shadow"] > 0
         # the owner's Claude tracks: registered with a switch, off by default (each call costs money)
         assert not cat["claude_smc_judge"]["trading"] and not cat["claude_smc_free"]["trading"]
         assert cat["claude_smc_free"]["style"] == "Claude AI"
@@ -77,7 +79,10 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
         assert s.engine.stages[("scalp_session_breakout", "1.0.0")] == Stage.SHADOW  # the engine knows
         on = {**body, "on": True}
         assert c.post("/api/control/paper-trade", json=on, headers=auth).json() == {"stage": "demo_only"}
-        assert len(c.get("/api/trades").json()) == len(st.trades)
+        api_trades = c.get("/api/trades?limit=500").json()
+        assert len(st.trades) + len(st.shadow_trades) <= 500  # all of them fit in one page
+        assert len([t for t in api_trades if not t["shadow"]]) == len(st.trades)  # paper
+        assert len([t for t in api_trades if t["shadow"]]) == len(st.shadow_trades) > 0  # would-have
         assert "Kometa Trading Hub" in c.get("/").text
         # the hub: every pipeline step happened, the feed tells it in order, the chart has prices and trades
         assert all(n > 0 for n in status["pipeline"].values()), status["pipeline"]
@@ -90,3 +95,16 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
         assert mkt["trades"] and all(t["r"] is not None for t in mkt["trades"])
 
     asyncio.run(go())
+
+
+def test_the_owners_switches_survive_a_restart(tmp_path: Path) -> None:
+    cfg = DemoConfig(root=ROOT, var=tmp_path / "state" / "sim", serve=False)
+    path = choices_path(cfg)
+    assert path.parent == tmp_path / "state"  # outside the directory a fresh start wipes
+    assert load_choices(path) == {}
+    save_choice(path, "smc_sniper", True)
+    save_choice(path, "swing_trend_pullback", False)
+    save_choice(path, "smc_sniper", False)
+    assert load_choices(path) == {"smc_sniper": False, "swing_trend_pullback": False}
+    path.write_text("not json")
+    assert load_choices(path) == {}  # a damaged file is ignored, never a crash

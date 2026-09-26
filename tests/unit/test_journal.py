@@ -12,6 +12,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from autotrader.core.bus import TRADES, InMemoryBus
 from autotrader.core.clock import SimClock
 from autotrader.core.events import BarClosed, OrderIntentCreated, PositionClosed, RiskDecided, SignalEmitted
 from autotrader.core.models import Bar, OrderIntent, RiskDecision, Signal, Timeframe, Trade
@@ -223,3 +224,19 @@ async def test_a_real_trade_lands_on_the_signal_that_became_it(tmp_path: Path) -
 
 def _closed(b: Bar) -> BarClosed:
     return BarClosed(at=b.close_time, symbol=b.symbol, timeframe=b.timeframe, bar=b)
+
+
+async def test_a_resolved_shadow_signal_becomes_a_shadow_trade_and_a_paper_signal_does_not(
+    tmp_path: Path,
+) -> None:
+    bus = InMemoryBus()
+    j = JournalService(SimClock(T0), ["XAUUSD"], bus=bus)
+    await j._on_signal(SignalEmitted(at=T0, signal=sig("paper"), timeframe=Timeframe.H1))
+    await j._on_signal(SignalEmitted(at=T0, signal=sig("shadow"), timeframe=Timeframe.H1, shadow=True))
+    j.on_bars([_closed(bar(3, 2002.0, 2031.0))])  # both reach the 2030 target
+    await j.flush()
+    [(_, msg)] = await bus.read(TRADES, "t", "t-1")
+    t = msg.trade
+    assert t.account_id == "shadow" and t.strategy_id == "swing" and t.lots == 0
+    assert t.r_multiple == pytest.approx(3.0) and t.exit_price == Decimal("2030.0")
+    assert t.trade_id == f"shadow-{sig('shadow').signal_id}"  # deterministic: one per signal, ever

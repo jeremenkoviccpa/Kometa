@@ -51,11 +51,15 @@ class EngineLiveService:
         money: Sequence[tuple[type[Strategy], Mapping[str, ParamValue]]] = (),
         history: Mapping[tuple[str, Timeframe], BarsArray] | None = None,
         news_fn: NewsFn | None = None,
+        shadow_signals: bool = False,
     ) -> None:
         """`history`: closed bars before the first live quote, so strategies start warmed up. They must
         end exactly where live bars begin (a trading-day boundary), or the first live bar would be partial."""
         self.bus = bus
         self.clock = clock
+        # demo: a runner whose version is in shadow still publishes its signals, marked shadow (never sized),
+        # so the owner sees what every strategy would trade; production runs shadow versions in sessions
+        self.shadow_signals = shadow_signals
         self.stages: dict[tuple[str, str], Stage] = {}
         self.account: AccountUpdate | None = None
         self._out: list[tuple[str, Any]] = []
@@ -151,9 +155,15 @@ class EngineLiveService:
 
     def _route(self, r: LiveRunner, reqs: list[Request]) -> None:
         key = (r.manifest.id, r.manifest.version)
-        if self.stages.get(key) not in MONEY:
-            return  # demoted or not promoted yet: a silent version
         tf = min(r.manifest.timeframes, key=lambda t: t.minutes)
+        if self.stages.get(key) not in MONEY:
+            if self.shadow_signals and self.stages.get(key) == Stage.SHADOW:
+                for req in reqs:
+                    if isinstance(req, Signal):
+                        self._out.append(
+                            (SIGNALS, SignalEmitted(at=req.created_at, signal=req, timeframe=tf, shadow=True))
+                        )
+            return  # demoted or not promoted yet: never sized, never an order
         for req in reqs:
             if isinstance(req, Signal):
                 self._out.append((SIGNALS, SignalEmitted(at=req.created_at, signal=req, timeframe=tf)))
