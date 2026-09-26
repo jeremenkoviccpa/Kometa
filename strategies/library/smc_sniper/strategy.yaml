@@ -2,7 +2,7 @@
 # and micro say so. The owner's SMC/ICT top-down "1M sniper entry" method, turned into fixed rules
 # (strategy.py docstring maps every step of the method to its rule).
 id: smc_sniper
-version: 1.0.1
+version: 1.0.2
 origin: owner
 family: smc_top_down
 symbols: [XAUUSD]
@@ -14,6 +14,10 @@ params:
   stop_buffer_atr: {value: 0.3, min: 0.0, max: 1.0, tunable: true}
   liq_lookback: {value: 20, min: 10, max: 60, tunable: true}
   min_rr: {value: 3.0, min: 3.0, max: 5.0, tunable: false}
+  require_d1: {value: true}
+  m15_poi: {value: false}
+  require_m5: {value: true}
+  require_bos: {value: true}
 expected:
   trades_per_month: 3
   win_rate: 0.25
