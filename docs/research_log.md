@@ -154,3 +154,30 @@ information about which breakouts fail, worth rechecking once the strategy itsel
 ranging 477 -0.096R, mixed 239 -0.068R; high vol 198 -0.082R, normal 462 -0.107R, low vol 251 -0.087R.
 Reading: it loses everywhere; no regime is bad enough against the rest (0.3R gap) to justify a filter, and
 a filter on a strategy that loses in every regime would only fit noise. No filter proposed.
+
+## 2026-09-27 Why the scalper loses on real gold, and three fixes tested (scripts/scalp_fix_variants.py)
+
+The owner saw scalp_session_breakout winning 54% and +22R in the demo. The demo's prices are synthetic with a
+built-in trend term, which a breakout strategy profits from by design; on real gold it is a different story.
+
+Diagnosis, exploration window 2017-2020 (629 trades): win 42.1%, -0.116R a trade; before costs -0.007R, costs
+0.109R a trade (spread, slippage, commission). Exits: 224 targets (+1.16R), 320 stops (-1.03R), 85 session
+closes (-0.03R). Only 12% of losers ever reached +0.8R (a breakeven stop would rescue little); 40% of winners
+first went 0.5R against (a tighter stop would kill them). Hour, weekday, side and year differences are within
+the noise of comparing many splits; no regime stands out (see above). Cause: the Asian-range breakout has no
+directional edge on gold, and costs make it lose.
+
+Three fixes declared before running, existing parameters only, each a trial:
+
+| Window | Variant | Trades | Win | Before costs | After costs |
+|---|---|---|---|---|---|
+| 2017-2020 | current | 629 | 42.1% | -0.007R | -0.116R |
+| 2017-2020 | A spread <= 5% of risk | 305 | 40.7% | -0.061R | -0.127R |
+| 2017-2020 | B breakout 15% of the range | 542 | 43.2% | +0.003R | -0.100R |
+| 2017-2020 | C target 2R | 629 | 36.4% | -0.020R | -0.131R |
+| 2021-2022 | current | 358 | 42.7% | +0.002R | -0.092R |
+| 2021-2022 | B (best on exploration) | 306 | 42.8% | -0.005R | -0.092R |
+
+Reading: B's small gain on the exploration window vanished on the unseen test window (identical -0.092R):
+noise. No parameter fix gives the breakout an edge before costs. Not changed; the demo's profit is the
+simulator's trend, not gold.
