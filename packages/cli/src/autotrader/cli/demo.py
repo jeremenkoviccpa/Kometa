@@ -58,6 +58,7 @@ from autotrader.core.series import BarsArray, from_ns, to_ns
 from autotrader.core.settings import Settings
 from autotrader.core.signing import DecisionVerifier, generate_keypair, load_private, load_public, sign_bytes
 from autotrader.core.timeframes import bucket_open_ns
+from autotrader.core.timeutil import ensure_utc
 from autotrader.data.calendar import ForexFactoryCalendar
 from autotrader.data.instruments import load_instruments
 from autotrader.data.synthetic import SyntheticSpec, generate, synthetic_instrument
@@ -120,6 +121,8 @@ class DemoConfig:
     serve: bool = True
     symbol: str = "XAUUSD"
     start_price: float | None = None  # sim: first price; default from MARKETS
+    replay: Path | None = None  # sim: a directory with <SYMBOL>_M1.parquet of real prices, played instead
+    replay_from: datetime | None = None  # replay: the first market day played (default: the data's start)
     leverage: int = 100  # sim broker margin: notional / leverage per lot
     calendar: bool = True  # fetch ForexFactory's weekly calendar (run_demo only; build never fetches)
     host: str = "127.0.0.1"  # anything else is public hosting: the whole API then needs the owner token
@@ -546,6 +549,19 @@ def choice_key(ls: LoadedStrategy) -> str:
     )
 
 
+def load_replay(directory: Path, symbol: str, start: datetime | None, history_days: int) -> pl.DataFrame:
+    """Real M1 bid/ask prices to play, from `history_days` before `start` (the warm-up) to the file's end."""
+    path = directory / f"{symbol}_M1.parquet"
+    if not path.exists():
+        raise SystemExit(f"no replay data for {symbol}: {path}")
+    frame = pl.read_parquet(path).sort("open_time")
+    if start is not None:
+        frame = frame.filter(pl.col("open_time") >= ensure_utc(start) - timedelta(days=history_days))
+    if frame.height < 2 * 1440:
+        raise SystemExit(f"{path}: too little data to replay from {start}")
+    return frame
+
+
 def owner_strategies_dir(cfg: DemoConfig) -> Path:
     return cfg.var.parent / "strategies"
 
@@ -702,18 +718,22 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
     adapter: BrokerAdapter
     if cfg.broker == "sim":
         mk = MARKETS.get(cfg.symbol, MARKETS["SYNTH"])
-        start = cfg.start_price or mk.start_price
-        frame = generate(
-            SyntheticSpec(
-                symbol=cfg.symbol,
-                days=cfg.history_days + cfg.catchup_days + int(cfg.run_days) + 3,
-                seed=cfg.seed,
-                start_price=start,
-                pip_size=float(inst.pip_size),
-                annual_vol=mk.annual_vol,
-                base_spread_pips=mk.spread_pips,
+        if cfg.replay is not None:  # real prices, bid and ask, minute by minute
+            frame = load_replay(cfg.replay, cfg.symbol, cfg.replay_from, cfg.history_days)
+            start = float(frame["bid_c"][0])
+        else:
+            start = cfg.start_price or mk.start_price
+            frame = generate(
+                SyntheticSpec(
+                    symbol=cfg.symbol,
+                    days=cfg.history_days + cfg.catchup_days + int(cfg.run_days) + 3,
+                    seed=cfg.seed,
+                    start_price=start,
+                    pip_size=float(inst.pip_size),
+                    annual_vol=mk.annual_vol,
+                    base_spread_pips=mk.spread_pips,
+                )
             )
-        )
         play_start = trading_day_start(frame, frame["open_time"][0] + timedelta(days=cfg.history_days))
         history = warmup_history(frame.filter(pl.col("open_time") < play_start), strategies, {**instruments})
         clock = SimClock(play_start)
@@ -933,7 +953,11 @@ async def build(cfg: DemoConfig, settings: Settings | None = None) -> DemoStack:
         allocator=allocator,
         adapter=adapter,
         info={
-            "mode": f"SIMULATED {cfg.symbol} · synthetic prices"
+            "mode": (
+                f"REPLAY {cfg.symbol} · real prices {frame['open_time'][0]:%Y}-{frame['open_time'][-1]:%Y}"
+                if cfg.replay is not None and frame is not None
+                else f"SIMULATED {cfg.symbol} · synthetic prices"
+            )
             if cfg.broker == "sim"
             else f"PAPER · {acct.trade_mode.upper()} ACCOUNT",
             "symbol": cfg.symbol,

@@ -1,0 +1,3 @@
+# Railway uploads what git ignores, except what is re-included here.
+# The demo replays real prices from replay/ (git-ignored so the repository stays small).
+!/replay/

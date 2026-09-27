@@ -18,6 +18,7 @@ from autotrader.cli.demo import DemoConfig, build, choices_path, load_choices, p
 from autotrader.core.alerts import Severity
 from autotrader.core.broker import is_system_comment
 from autotrader.core.models import Stage
+from autotrader.data.synthetic import SyntheticSpec, generate
 from autotrader.execution.fake import FakeBroker
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -132,3 +133,31 @@ def test_the_owners_switches_survive_a_restart(tmp_path: Path) -> None:
     assert load_choices(path) == {"smc_sniper": False, "swing_trend_pullback": False}
     path.write_text("not json")
     assert load_choices(path) == {}  # a damaged file is ignored, never a crash
+
+
+def test_the_demo_replays_real_prices_from_a_file(tmp_path: Path) -> None:
+    """Replay: a price file (here a stand-in written to disk) is played instead of synthetic prices, from
+    the chosen day, with the warm-up before it, and the hub says so."""
+    frame = generate(SyntheticSpec(symbol="XAUUSD", days=330, seed=3, start_price=1800.0, pip_size=0.01))
+    (tmp_path / "replay").mkdir()
+    frame.write_parquet(tmp_path / "replay" / "XAUUSD_M1.parquet")
+    start = frame["open_time"][0] + timedelta(days=280)
+
+    async def go() -> None:
+        s = await build(
+            DemoConfig(
+                root=ROOT,
+                var=tmp_path / "demo",
+                serve=False,
+                catchup_days=5,
+                replay=tmp_path / "replay",
+                replay_from=start,
+            )
+        )
+        assert s.info["mode"].startswith("REPLAY XAUUSD · real prices")
+        assert s.frame is not None and s.frame["open_time"][0] >= start - timedelta(days=260, hours=1)
+        assert s.clock.now() >= start - timedelta(days=1)  # play starts at the chosen day, after the warm-up
+        await play_sim(s, until=s.clock.now() + timedelta(days=5))
+        assert s.journal is not None and s.journal.spreads.count("XAUUSD") > 1000  # the file's own quotes
+
+    asyncio.run(go())

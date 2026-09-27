@@ -6,6 +6,8 @@
 #   AT_STATE_DIR         persistent state, default /data/kometa (mount a volume at /data)
 #   AT_DEMO_EQUITY       sim starting balance (default 50000). The paper stage risks 0.1% a trade and the gate
 #                        never rounds up to the 0.01 lot minimum, so gold swing stops need about 250000
+#   AT_DEMO_REPLAY       sim: a directory with <SYMBOL>_M1.parquet of real prices to play instead of synthetic ones
+#   AT_DEMO_REPLAY_FROM  replay: the first market day, YYYY-MM-DD (default: the data's start)
 #   AT_DEMO_TRADE        sim: space-separated strategy ids paper trading at start (default: the library;
 #                        the Claude tracks only when listed here, each call costs money)
 #   PORT                 set by the host (Railway), default 8080
@@ -19,6 +21,7 @@ if [ "$BROKER" = "sim" ]; then
   exec at demo run --broker sim --host 0.0.0.0 --port "$PORT" --var "$STATE/sim" --fresh \
     --speed "${AT_DEMO_SPEED:-60}" --catchup-days "${AT_DEMO_CATCHUP_DAYS:-10}" \
     --run-days "${AT_DEMO_RUN_DAYS:-365}" --equity "${AT_DEMO_EQUITY:-50000}" \
-    ${AT_DEMO_TRADE:+--trade $AT_DEMO_TRADE}
+    ${AT_DEMO_TRADE:+--trade $AT_DEMO_TRADE} \
+    ${AT_DEMO_REPLAY:+--replay "$AT_DEMO_REPLAY"} ${AT_DEMO_REPLAY_FROM:+--replay-from "$AT_DEMO_REPLAY_FROM"}
 fi
 exec at demo run --broker "$BROKER" --host 0.0.0.0 --port "$PORT" --var "$STATE/$BROKER"

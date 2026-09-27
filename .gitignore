@@ -16,3 +16,6 @@ secrets/
 /var/
 web/index.html
 web/.vercel
+
+# real price data for the hosted demo replay (uploaded to Railway via .railwayignore, never committed)
+/replay/

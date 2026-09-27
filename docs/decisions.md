@@ -461,3 +461,14 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
 - The demo calibrates weekly (market time) unless learning is paused, and the hub shows the active model, the
   latest calibration and the live spreads. In the simulated demo the evidence is the simulator's; it matters
   once the cTrader demo account trades. Re-validation of micro+ versions is announced (open question 39).
+
+## 2026-09-27 The hosted demo replays real prices
+
+- The owner read the demo's scalper profit (+22R, 54% wins) as real. The demo's synthetic prices carry a trend
+  term that breakout strategies profit from by design; on real gold the same strategy has no edge before costs
+  (research_log). The demo now replays real Dukascopy gold M1 bid/ask (2017-2023; 2024 never leaves the Mac,
+  it stays the unseen final year) through the same pipeline at the same speed: `at demo run --replay DIR
+  [--replay-from DAY]`, AT_DEMO_REPLAY / AT_DEMO_REPLAY_FROM on the server. The hub says "REPLAY XAUUSD · real
+  prices". When the data ends the demo exits and the host restarts it, replaying from the start again.
+- The data (64 MB) is git-ignored (/replay/) and uploaded to Railway through `.railwayignore` (`!/replay/`), so
+  the repository stays small; `railway up --no-gitignore` was not an option (it would upload secrets/).

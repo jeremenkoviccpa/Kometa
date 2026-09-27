@@ -597,6 +597,10 @@ def _demo_run(args: argparse.Namespace) -> int:
         equity=Decimal(str(args.equity)),
         symbol=args.symbol,
         start_price=args.start_price,
+        replay=Path(args.replay) if args.replay else None,
+        replay_from=datetime.fromisoformat(args.replay_from).replace(tzinfo=UTC)
+        if args.replay_from
+        else None,
         trade=tuple(args.trade) if args.trade is not None else None,
         host=args.host,
         run_days=args.run_days,
@@ -878,6 +882,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--trade", nargs="*", default=None, help="strategy ids paper trading at start (default: the library)"
     )
     dr.add_argument("--start-price", type=float, default=None, help="first simulated price (sim)")
+    dr.add_argument("--replay", default=None, help="sim: play real prices from DIR/<SYMBOL>_M1.parquet")
+    dr.add_argument("--replay-from", default=None, help="replay: first market day played, YYYY-MM-DD")
     dr.add_argument("--var", default="var/demo", help="state directory (journal, audit, registry)")
     dr.add_argument("--root", default=".", help="repository root (config/, strategies/)")
     dr.set_defaults(func=_demo_run)
