@@ -37,6 +37,7 @@ from autotrader.engine.backtest import BacktestConfig, run_backtest
 from autotrader.execution.adapter import BrokerAdapter, BrokerUnavailableError
 from autotrader.execution.mt5 import MT5Adapter
 from autotrader.execution.service import StartupRefusedError, startup_checks
+from autotrader.learning.costs import CostRegistry
 from autotrader.learning.guard import LearningGuard
 from autotrader.learning.history import journal_from_backtest
 from autotrader.learning.lessons import LessonBook, lesson_from_validation
@@ -49,7 +50,7 @@ from autotrader.lifecycle.registry import IllegalTransitionError, Origin, Regist
 from autotrader.risk.config import ConfigSignatureError, RiskLimits, load_signed
 from autotrader.strategies_api.loader import LoadedStrategy, StrategyLoadError, load_strategy
 from autotrader.validation.config import ValidationConfig
-from autotrader.validation.inputs import prepare
+from autotrader.validation.inputs import CostOverride, prepare
 from autotrader.validation.poisoning import future_poisoning_test
 from autotrader.validation.report import to_json, write_html, write_json
 from autotrader.validation.runner import Validator, default_epoch
@@ -170,11 +171,14 @@ def _validate_and_report(
     ledger = JsonlLedger(settings.ledger_path)
     epoch_end = min(f["open_time"][-1] for f in frames.values())
     epoch = default_epoch(epoch_end, cfg.holdout.months, args.epoch)
+    costs = _cost_override(settings) if getattr(args, "costs", "none") == "active" else None
     v = Validator(
         cfg,
         TrialRegistry(ledger),
         HoldoutLock(ledger, epoch.epoch, cfg.holdout.max_attempts_per_family_per_epoch),
-        config_hash=cfg_hash,
+        # the cost model's version is part of every trial's record (spec 14.11)
+        config_hash=cfg_hash + (f"+costs:{costs.version_id}" if costs is not None else ""),
+        costs=costs,
     )
     rep = v.validate(
         ls,
@@ -199,6 +203,16 @@ def _validate_and_report(
         print(f"warn {w}")
     print(f"{'PASSED' if rep.passed else 'FAILED'}  report: {stem.with_suffix('.html')}")
     return rep, stem
+
+
+def _cost_override(settings: Settings) -> CostOverride | None:
+    """The active calibrated cost model (L8), or None (then the data's spreads and default slippage)."""
+    act = CostRegistry(settings.models_dir / "cost_registry.jsonl").active()
+    if act is None:
+        print("no active calibrated cost model: using the data's spreads")
+        return None
+    print(f"costs: calibrated model {act.version_id} ({act.reason})")
+    return CostOverride(act.version_id, act.spread_by_hour, act.slippage_mult)
 
 
 def _frozen() -> bool:
@@ -737,6 +751,9 @@ def build_parser() -> argparse.ArgumentParser:
     va.add_argument("--config", default="config/validation.yaml")
     va.add_argument("--epoch", default=None, help="holdout epoch id")
     va.add_argument("--out", default=None)
+    va.add_argument(
+        "--costs", choices=["none", "active"], default="none", help="active: the calibrated cost model (L8)"
+    )
     va.set_defaults(func=_validate)
 
     le = sub.add_parser("learn", help="learning loops (phase 9)").add_subparsers(

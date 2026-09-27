@@ -34,6 +34,8 @@ REGIME = "packages/learning/src/autotrader/learning/regime.py"
 REGIME_T = "tests/unit/test_regime.py"
 GUARD = "packages/learning/src/autotrader/learning/guard.py"
 GUARD_T = "tests/unit/test_learning_switches.py"
+COSTS = "packages/learning/src/autotrader/learning/costs.py"
+COSTS_T = "tests/unit/test_costs_calibration.py"
 EVAL = "packages/lifecycle/src/autotrader/lifecycle/evaluator.py"
 UNIT_EXEC = "tests/unit/test_execution.py"
 CHAOS = "tests/integration/test_execution_chaos.py"
@@ -590,5 +592,19 @@ MUTATIONS: tuple[Mutation, ...] = (
         '        if self.learning_paused is not None and self.learning_paused("L2") is not None:\n',
         "        if False:\n",
         (SWAP_T,),
+    ),
+    Mutation(
+        "costs: a cheaper model activates at once",
+        COSTS,
+        "    if not cheaper:\n",
+        "    if True:\n",
+        (COSTS_T,),
+    ),
+    Mutation(
+        "costs: a cheaper model activates without enough fills",
+        COSTS,
+        '    enough = all(new.evidence.get(s, {}).get("fills", 0) >= MIN_FILLS for s in cheaper)\n',
+        "    enough = True\n",
+        (COSTS_T,),
     ),
 )

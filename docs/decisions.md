@@ -446,3 +446,18 @@ which also confirmed that moving EMA/Wilder/RSI loops to plain Python floats did
   outcomes, API calls (the spec's "API cost": calls are what Kometa knows; billing is Anthropic's). Trials carry
   no run time, so "variants tried" is every recorded trial, and the report says so. The demo sends it weekly
   (market time) as an alert and shows it on the Learning tab; `at learn report` prints it offline.
+
+## 2026-09-27 Phase 9, slice 6: cost calibration (L8)
+
+- The backtest cost model is spread = median by hour of week, slippage = a multiple of that spread. L8
+  measures both from Kometa's own data: the journal samples every live quote's spread per market and hour of
+  week (last 300 per bucket), and the execution-quality log gives slippage / spread at the fill per market.
+- Asymmetric activation, as the spec says: a version costlier in every market it covers (mean spread over
+  the hours seen x (1 + slippage)) activates at once; a cheaper one is pending until each cheaper market has
+  200 fills and four weekly calibrations in a row were cheaper, with a warning alert every week it waits.
+  Every calibration is appended to cost_registry.jsonl with its evidence and a content hash.
+- `prepare(costs=CostOverride)` and `Validator(costs=...)` apply a version (hours without data keep the data's
+  median); `at validate --costs active` uses the active one and its id goes into the trials' config hash.
+- The demo calibrates weekly (market time) unless learning is paused, and the hub shows the active model, the
+  latest calibration and the live spreads. In the simulated demo the evidence is the simulator's; it matters
+  once the cTrader demo account trades. Re-validation of micro+ versions is announced (open question 39).

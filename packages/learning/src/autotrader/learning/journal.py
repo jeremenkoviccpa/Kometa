@@ -37,6 +37,7 @@ from autotrader.core.indicators import EventIndex
 from autotrader.core.models import Bar, Timeframe, Trade
 from autotrader.core.series import BarsArray, to_ns
 from autotrader.engine.live_bars import LiveBarBuilder
+from autotrader.learning.costs import SpreadSamples
 from autotrader.learning.features import FeatureSnapshot, snapshot
 
 SHADOW_ACCOUNT = "shadow"  # the lifecycle's account id for shadow trades
@@ -193,6 +194,7 @@ class JournalService:
         # version would have made, for the hub and the lifecycle's shadow evidence
         self.bus = bus
         self._out: list[PositionClosed] = []
+        self.spreads = SpreadSamples()  # L8: the live spread by hour of week
         self.path = path
         self.events = events
         subs = [(s, tf) for s in symbols for tf in (Timeframe.M1, *KEEP)]
@@ -250,6 +252,7 @@ class JournalService:
             return
         q = Quote(symbol=msg.symbol, bid=Decimal(str(msg.bid)), ask=Decimal(str(msg.ask)), time=msg.at)
         self.quotes[q.symbol] = q
+        self.spreads.add(q.symbol, to_ns(q.time), float(q.ask - q.bid))
         self.on_bars(self.builder.on_quote(q))
         await self.flush()
 

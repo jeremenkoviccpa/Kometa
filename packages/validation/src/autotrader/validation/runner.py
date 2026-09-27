@@ -35,7 +35,7 @@ from autotrader.strategies_api.loader import LoadedStrategy
 from autotrader.strategies_api.manifest import ParamValue, StrategyManifest
 from autotrader.validation.config import ValidationConfig
 from autotrader.validation.dsr import DSRResult, deflated_sharpe, sharpe
-from autotrader.validation.inputs import EngineInputs, prepare
+from autotrader.validation.inputs import CostOverride, EngineInputs, prepare
 from autotrader.validation.montecarlo import MonteCarloResult, monte_carlo
 from autotrader.validation.store import HoldoutLock, HoldoutRefusedError, Trial, TrialKind, TrialRegistry
 
@@ -216,7 +216,10 @@ class Validator:
         config_hash: str = "",
         risk_fraction: float = 0.005,
         seed: int = 0,
+        costs: CostOverride | None = None,
     ) -> None:
+        """`costs`: a calibrated cost model (L8) instead of the data's spreads and the default slippage."""
+        self.costs = costs
         self.cfg = cfg
         self.registry = registry
         self.lock = holdout_lock
@@ -283,7 +286,7 @@ class Validator:
         # research data ends where the holdout starts; the holdout is prepared separately
         research = {s: frames[s].filter(pl.col("open_time") < hs) for s in universe}
         uni_manifest = man.model_copy(update={"symbols": tuple(universe)})
-        rin = prepare(research, uni_manifest, instruments, synthetic=synthetic)
+        rin = prepare(research, uni_manifest, instruments, synthetic=synthetic, costs=self.costs)
         r_start = max(int(rin.m1[s].open_time[0]) for s in man.symbols)
         r_end = min(int(rin.m1[s].close_time[-1]) for s in man.symbols)
         pad_ns = int(warmup_pad(cls).total_seconds() * 1e9)
@@ -478,7 +481,9 @@ class Validator:
                 checks.append(Check("holdout_profit_factor", 0.0, th.min_holdout_profit_factor, False, ">="))
             else:
                 full = {s: frames[s].filter(pl.col("open_time") < he) for s in man.symbols}
-                h_in_all = prepare(full, man, instruments, spread_frames=research, synthetic=synthetic)
+                h_in_all = prepare(
+                    full, man, instruments, spread_frames=research, synthetic=synthetic, costs=self.costs
+                )
                 h_in = slice_inputs(h_in_all, to_ns(hs) - pad_ns, to_ns(he), man.symbols)
                 _, trades, _ = self._run(
                     cls,

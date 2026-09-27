@@ -60,6 +60,11 @@ def test_demo_runs_end_to_end(tmp_path: Path) -> None:
         status = c.get("/api/status").json()
         assert status["info"]["mode"].startswith("SIMULATED XAUUSD") and status["halt"] == "NORMAL"
         assert set(status["heartbeats"]) >= {"engine", "risk-gate", "execution"}
+        # L8: a calibration from the demo's own quotes and fills; the first one is active
+        s.calibrate_costs()
+        costs = c.get("/api/learning").json()["costs"]
+        assert costs["active"] is not None and costs["active"]["evidence"]["XAUUSD"]["quotes"] > 1000
+        assert costs["live"]["XAUUSD"]["median_now"] > 0
         catalog = c.get("/api/catalog").json()
         cat = {x["strategy_id"]: x for x in catalog if not x["meta_model"]}
         # L3: the shipped meta model runs as a filtered version beside the plain scalper, in shadow

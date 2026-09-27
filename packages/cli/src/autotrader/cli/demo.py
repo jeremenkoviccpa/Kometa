@@ -46,7 +46,7 @@ from autotrader.allocator.config import load_allocator_config
 from autotrader.allocator.service import AllocatorService
 from autotrader.api.app import create_app
 from autotrader.core.alerts import Alert, Severity
-from autotrader.core.broker import Quote, SymbolInfo
+from autotrader.core.broker import ExecutionQuality, Quote, SymbolInfo
 from autotrader.core.bus import CONFIG, CONTROL, HEARTBEATS, InMemoryBus, Service, pump
 from autotrader.core.clock import Clock, LiveClock, SimClock
 from autotrader.core.configs import config_events
@@ -78,6 +78,8 @@ from autotrader.execution.quotes import QuoteBook
 from autotrader.execution.reconcile import Reconciler
 from autotrader.execution.service import ExecutionService, startup_checks
 from autotrader.execution.watchdog import Watchdog
+from autotrader.learning.costs import CostRegistry, calibrate, decide
+from autotrader.learning.costs import view as cost_view
 from autotrader.learning.features import snapshot
 from autotrader.learning.guard import LearningGuard
 from autotrader.learning.journal import JournalService, bars_array
@@ -161,7 +163,11 @@ LOOPS = [
         "what": "a lesson on every demotion or failed validation",
     },
     {"loop": "L7 Meta-learning", "status": "not built", "what": "which research sources produce survivors"},
-    {"loop": "L8 Cost calibration", "status": "not built", "what": "real spreads and slippage from fills"},
+    {
+        "loop": "L8 Cost calibration",
+        "status": "running",
+        "what": "weekly: live spreads, fill slippage; cheaper waits for evidence",
+    },
 ]
 
 STYLE = {
@@ -363,6 +369,48 @@ class DemoStack:
             out[sym] = {"trend": trend, "vol": vol, "efficiency": f.efficiency_d1, "atr_pct": f.atr_pct_d1}
         return out
 
+    def cost_registry(self) -> CostRegistry:
+        return CostRegistry(self.cfg.var.parent / "costs" / "cost_registry.jsonl")
+
+    def calibrate_costs(self) -> None:
+        """L8: calibrate from the week's quotes and fills; the asymmetric rule decides (spec 14.11)."""
+        if self.journal is None:
+            return
+        path = self.cfg.var / "execution_quality.jsonl"
+        fills = (
+            [ExecutionQuality.model_validate_json(x) for x in path.read_text().splitlines() if x.strip()]
+            if path.exists()
+            else []
+        )
+        reg = self.cost_registry()
+        d = decide(calibrate(self.journal.spreads, fills, self.clock.now()), reg.active(), reg.versions())
+        reg.add(d.version)
+        now = self.clock.now()
+        if d.alert:
+            self.router.send(Alert(severity=Severity.WARNING, kind="cost_model", message=d.alert, at=now))
+        if d.activate:
+            again = sorted(
+                f"{v.info.strategy_id} {v.info.version}"
+                for v in self.registry.versions()
+                if v.stage in (Stage.MICRO, Stage.LIVE, Stage.SCALED)
+            )
+            if again:
+                msg = (
+                    f"cost model {d.version.version_id} active: re-validate {', '.join(again)} "
+                    "(at validate --costs active)"
+                )
+                self.router.send(Alert(severity=Severity.WARNING, kind="cost_model", message=msg, at=now))
+
+    def live_spreads(self) -> dict[str, Any]:
+        """Per market: spread samples so far and the median of the latest hour of week with data."""
+        if self.journal is None:
+            return {}
+        out: dict[str, Any] = {}
+        for s, meds in self.journal.spreads.medians().items():
+            now = next((m for m in reversed(meds) if m is not None), None)
+            out[s] = {"quotes": self.journal.spreads.count(s), "median_now": now}
+        return out
+
     def learning_report(self) -> dict[str, Any]:
         """The weekly learning report (spec 14.9) for the last seven market days."""
         return weekly_report(
@@ -396,6 +444,7 @@ class DemoStack:
             "regime_now": self.regime_now(),
             "report": self.learning_report(),
             "guard": self.guard.view(),
+            "costs": {**cost_view(self.cost_registry()), "live": self.live_spreads()},
             "lessons": [x.model_dump(mode="json") for x in lessons],
             "challengers": [
                 {
@@ -992,6 +1041,12 @@ class Scheduler:
         acct, peak = s.monitor.state.account, s.monitor.state.peak_equity
         if acct is not None and peak:
             s.guard.update(float((peak - acct.equity) / peak), now)  # the drawdown pause (spec 14.9)
+        if (
+            self.due("weekly_costs", timedelta(days=7), now)
+            and self.last.get("hourly") is not None
+            and s.guard.paused("L8") is None
+        ):
+            s.calibrate_costs()
         if self.due("weekly_learning", timedelta(days=7), now) and self.last.get("hourly") is not None:
             text = markdown(s.learning_report())
             s.router.send(Alert(severity=Severity.INFO, kind="learning_report", message=text, at=now))
