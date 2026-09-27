@@ -501,12 +501,16 @@ BAR_COLUMNS = {"bid_o", "bid_h", "bid_l", "bid_c", "ask_o", "ask_h", "ask_l", "a
 
 
 def trading_day_start(frame: pl.DataFrame, after: datetime) -> datetime:
-    """The first bar at or after `after` that opens a trading day (17:00 New York): every bar of every
-    timeframe that ends before it is complete, so history and live bars meet without a partial bar."""
-    for t in frame.filter(pl.col("open_time") >= after)["open_time"]:
-        if bucket_open_ns(to_ns(t), Timeframe.D1) == to_ns(t):
+    """The first bar at or after `after` that opens a trading day: every bar of every timeframe that ends
+    before it is complete, so history and live bars meet without a partial bar. Real gold pauses 17:00-18:00
+    New York, so a day's first bar need not sit on the 17:00 boundary: it is the first bar of a new day."""
+    prev = None
+    for t in frame.filter(pl.col("open_time") >= after - timedelta(days=4))["open_time"]:
+        day = bucket_open_ns(to_ns(t), Timeframe.D1)
+        if t >= after and prev is not None and day != prev:
             return t  # type: ignore[no-any-return]
-    raise SystemExit("not enough synthetic data after the warm-up period")
+        prev = day
+    raise SystemExit("not enough price data after the warm-up period")
 
 
 def meta_versions(library: list[LoadedStrategy], dirs: list[Path]) -> list[LoadedStrategy]:

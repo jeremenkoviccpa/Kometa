@@ -11,10 +11,21 @@ import asyncio
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
+import polars as pl
 from fastapi.testclient import TestClient
 
-from autotrader.cli.demo import DemoConfig, build, choices_path, load_choices, play_sim, save_choice, stage_of
+from autotrader.cli.demo import (
+    DemoConfig,
+    build,
+    choices_path,
+    load_choices,
+    play_sim,
+    save_choice,
+    stage_of,
+    trading_day_start,
+)
 from autotrader.core.alerts import Severity
 from autotrader.core.broker import is_system_comment
 from autotrader.core.models import Stage
@@ -161,3 +172,14 @@ def test_the_demo_replays_real_prices_from_a_file(tmp_path: Path) -> None:
         assert s.journal is not None and s.journal.spreads.count("XAUUSD") > 1000  # the file's own quotes
 
     asyncio.run(go())
+
+
+def test_real_gold_starts_on_the_first_bar_after_its_daily_break() -> None:
+    """Gold pauses 17:00-18:00 New York: a trading day's first bar is 18:00, not the 17:00 boundary."""
+    frame = generate(SyntheticSpec(symbol="XAUUSD", days=20, seed=1))
+    ny_hour = pl.col("open_time").dt.convert_time_zone("America/New_York").dt.hour()
+    gold = frame.filter(ny_hour != 17)  # the daily break
+    after = frame["open_time"][0] + timedelta(days=5)
+    t = trading_day_start(gold, after)
+    assert t >= after and t.astimezone(ZoneInfo("America/New_York")).hour == 18
+    assert trading_day_start(frame, after).astimezone(ZoneInfo("America/New_York")).hour == 17  # control
